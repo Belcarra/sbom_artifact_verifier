@@ -1,0 +1,943 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ericsson SBOM Verifier</title>
+    <!-- JSZip for in-browser ZIP parsing -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"
+            integrity="sha512-XMVd28F1oH/O71fzwBnV7HucLxVwtxf26XV8P4wPk26EDxuGZ91N8bsOttmnomcCD3CS5ZMRL50H0GgOHvegtg=="
+            crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+    <style>
+        html, body { height: 100%; width: 100%; }
+        body { font-family: sans-serif; margin: 0; padding: 16px; line-height: 1.6; background: #f4f7f6; display: flex; flex-direction: column; min-height: 100vh; }
+        /* Results layout fills viewport */
+        #results-container { display: none; width: 100%; flex: 1 1 auto; display: none; flex-direction: column; gap: 12px; min-height: 0; }
+        #tree-panel { flex: 1 1 auto; display: none; flex-direction: column; gap: 8px; min-height: 0; }
+        #results-table { width: 100%; }
+        /* Ensure children can shrink/grow within container */
+        #results-container > * { min-width: 0; }
+        /* Ensure the drop area fits exactly within the viewport width (accounting for body padding 16px on both sides) */
+        .drop-zone { width: calc(100vw - 32px); max-width: 100vw; box-sizing: border-box; border: 3px dashed #007bff; border-radius: 15px; padding: 20px; text-align: center; background: white; transition: 0.3s; cursor: pointer; overflow-x: clip; }
+        .drop-zone.hover { background: #e7f3ff; border-color: #0056b3; }
+        .drop-zone.active {
+            display: block;
+            width: calc(100vw - 32px);
+            border-style: solid;
+        }
+        .status-row { margin-top: 20px; display: flex; align-items: stretch; gap: 8px; }
+        .status { padding: 15px; border-radius: 8px; display: none; flex: 1 1 auto; }
+        .btn { padding: 10px 14px; border-radius: 8px; border: 1px solid #d0d7de; background: #f6f8fa; cursor: pointer; font-weight: 600; }
+        .btn:hover { background: #eef1f4; }
+        .btn.new-file { align-self: stretch; white-space: nowrap; }
+        .success { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+        .error { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; background: white; }
+        th, td { border: 1px solid #ddd; padding: 10px; text-align: left; font-size: 14px; }
+        th { background-color: #f8f9fa; }
+        .pass { color: green; font-weight: bold; }
+        .fail { color: red; font-weight: bold; }
+        .loader { display: none; margin: 20px auto; border: 4px solid #f3f3f3; border-top: 4px solid #3498db; border-radius: 50%; width: 30px; height: 30px; animation: spin 1s linear infinite; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+
+        /* Tree view */
+        .tree { background: #fff; border: 1px solid #e2e2e2; border-radius: 8px; padding: 10px; }
+        .tree, .tree-lines, .tree-pre, table { max-width: 100%; box-sizing: border-box; }
+        .tree-list { list-style: none; padding-left: 18px; margin: 6px 0; }
+        .tree .dir { font-weight: 600; color: #333; }
+        .tree .file { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace; }
+        .badge { display: inline-block; padding: 2px 6px; border-radius: 10px; font-size: 11px; margin-left: 6px; border: 1px solid transparent; }
+        .badge.ok { background: #e6f4ea; color: #1e7e34; border-color: #c7e6cd; }
+        /* Make TAMPERED and EXTRA highly visible (strong red) */
+        .badge.bad, .badge.extra { background: #ffebee; color: #b71c1c; border-color: #ef9a9a; font-weight: 700; }
+        .badge.missing { background: #fff4e5; color: #8a6d3b; border-color: #ffe0b2; }
+        /* Make tree containers use available vertical space */
+        .panel-scroll { overflow: visible; }
+
+        .ascii-tree { display:none; }
+        /* Line-connected tree styling */
+        .tree-lines { background: #fff; border: 1px solid #e2e2e2; border-radius: 8px; padding: 10px; }
+        .tree-lines > ul::before { display: none; }
+        .tree-lines ul { list-style: none; margin: 0 0 0 .8em; padding: 0 0 0 1.2em; position: relative; }
+        .tree-lines ul::before { content: ""; border-left: 2px solid #9aa7b0; position: absolute; top: 0; bottom: 0; left: .6em; }
+        .tree-lines li { position: relative; margin: .2em 0; padding: .2em 0 .2em 1.4em; }
+        /* Horizontal connector */
+        .tree-lines li::before { content: ""; position: absolute; top: 1.05em; left: .9em; width: 1.0em; border-top: 2px solid #9aa7b0; }
+        /* Sideways T/Corner glyph at junction */
+        .tree-lines li::after { content: "├"; position: absolute; left: .45em; top: .52em; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace; font-size: 12px; line-height: 1; color: #6b7781; }
+        .tree-lines li.last::after { content: "└"; }
+        /* Mask the vertical line below the last child so it stops at the corner */
+        .tree-lines li.last span.dir, .tree-lines li.last span.file { position: relative; }
+        .tree-lines li.root::before, .tree-lines li.root::after { display: none; }
+
+        /* Ensure results content is left-aligned (drop-zone centers by default) */
+        .drop-zone .tree,
+        .drop-zone .tree-lines,
+        .drop-zone .tree-list,
+        .drop-zone .tree-list li,
+        .drop-zone #status-box,
+        .drop-zone h2,
+        .drop-zone h3,
+        .drop-zone #archive-tree,
+        .drop-zone #tree-view,
+        .drop-zone #extras-view,
+        .drop-zone table {
+            text-align: left;
+        }
+
+        /* Modal password prompt */
+        .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.35); display: none; align-items: center; justify-content: center; z-index: 9999; }
+        .modal { background: #fff; border: 1px solid #e2e2e2; border-radius: 10px; padding: 16px; width: min(520px, 90vw); box-shadow: 0 10px 30px rgba(0,0,0,.2); }
+        .modal h3 { margin: 0 0 8px 0; font-size: 18px; }
+        .modal p { margin: 0 0 10px 0; color: #333; }
+        .modal input[type="password"], .modal input[type="text"] { width: 100%; padding: 10px; font-size: 16px; box-sizing: border-box; border: 1px solid #ccc; border-radius: 6px; }
+        .modal-actions { display: flex; gap: 8px; align-items: center; margin-top: 10px; }
+        .modal button { padding: 8px 12px; border-radius: 6px; border: 1px solid #d0d7de; background: #f6f8fa; cursor: pointer; }
+        .modal button:hover { background: #eef1f4; }
+        .modal .primary { background: #2da44e; color: #fff; border-color: #2da44e; }
+        .modal .primary:hover { background: #2c974b; }
+        .modal-note { font-size: 12px; color: #555; margin-top: 8px; }
+
+        /* Text-based tree block (box-drawing chars) */
+        .tree-pre {
+            background: #fff;
+            border: 1px solid #e2e2e2;
+            border-radius: 8px;
+            padding: 10px;
+            white-space: pre;
+            font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace;
+            font-size: 22px;
+            line-height: 1.1;
+            letter-spacing: 0;
+        }
+        .tree-pre .tree-name { font-size: 20px; }
+        .tree-pre .tree-dir { font-weight: 600; }
+        .tree-pre .tree-root { font-weight: 700; }
+
+        /* About panel */
+        .about { margin-top: 10px; background: #fff; border: 1px solid #e2e2e2; border-radius: 8px; padding: 12px; font-size: 14px; color: #333; }
+        .about p { margin: 6px 0; }
+
+    </style>
+</head>
+<body>
+
+    <h1 id="title">📦 SBOM Artifact Verifier</h1>
+    <p id="intro">Drop your <strong>Package ZIP</strong> (OEM or End‑User kit) below. Password‑protected ZIPs are supported.</p>
+
+    <div id="drop-zone" class="drop-zone"><div id="drop-label">Drag & Drop Package ZIP Here or Click to Select</div></div>
+    <div id="about-panel" class="about">
+        <p><strong>What this verifier does:</strong> Validates that your package matches its SBOM and is signed.</p>
+        <p>
+            • Checks SBOM integrity by comparing <code>manifest.spdx.json</code> with its <code>.sha256</code> sidecar.<br>
+            • Cryptographically verifies catalog signature(s) (<code>.cat</code>) and shows the signer/issuer/root.<br>
+            • Recomputes SHA‑256 for every file and flags <span class="badge ok">OK</span>, <span class="badge bad">TAMPERED</span>, <span class="badge missing">MISSING</span>, and <span class="badge extra">EXTRA</span>.
+        </p>
+        <p><strong>What it does not do:</strong> It does not consult the Windows trust store or perform revocation checks. For official Windows trust, use <code>signtool verify /kp /v</code> on the catalog.</p>
+        <p style="font-size:15px; font-weight:600;">All processing happens locally in your browser. No files or passwords are sent anywhere.</p>
+        <p style="margin-top:8px;">Project: <a href="https://github.com/Belcarra/sbom_artifact_verifier" target="_blank" rel="noopener">git@github.com:Belcarra/sbom_artifact_verifier.git</a></p>
+    </div>
+    <input type="file" id="file-input" style="display: none;" accept=".zip">
+
+    <div id="loader" class="loader"></div>
+    <div id="results-container">
+    <div id="status-row" class="status-row">
+        <div id="status-box" class="status"></div>
+        <button id="new-file-btn" type="button" class="btn new-file">New File</button>
+    </div>
+
+    <div id="sig-panel" class="tree" style="margin-top:12px;">
+        <h2 style="margin:0 0 8px 0; font-size:18px;">Signature & Integrity</h2>
+        <div id="sbom-cat-signature" style="margin-bottom:8px;">
+            <strong>SBOM Catalog Signature:</strong> <span id="sbom-cat-status">Pending</span>
+            <div id="sbom-cat-detail" style="font-size:12px;color:#555;margin-top:4px;"></div>
+        </div>
+        <div id="sbom-integrity" style="margin-bottom:8px;">
+            <strong>SBOM Integrity:</strong> <span id="sbom-status">Pending</span>
+            <div id="sbom-detail" style="font-size:12px;color:#555;margin-top:4px;"></div>
+        </div>
+        <div id="cat-signature">
+            <strong>Driver Catalog Signature:</strong> <span id="cat-status">Pending</span>
+            <div id="cat-detail" style="font-size:12px;color:#555;margin-top:4px;"></div>
+        </div>
+    </div>
+
+    <div id="tree-panel" style="display:none;">
+        <h2 style="margin:0 0 8px 0; font-size:18px;">Archive Contents</h2>
+        <div id="archive-tree" class="tree tree-lines panel-scroll"></div>
+        <div style="display:flex; gap:16px; align-items:center;">
+            <h2 style="margin:0; font-size:18px;">Manifest Tree</h2>
+            <div style="font-size:12px; color:#555;">
+                <span class="badge ok">OK</span>
+                <span class="badge bad">TAMPERED</span>
+                <span class="badge missing">MISSING</span>
+                <span class="badge extra">EXTRA</span>
+            </div>
+        </div>
+        <!-- Hide secondary (manifest) tree; we keep only the archive tree but preserve the legend -->
+        <div id="tree-view" class="tree panel-scroll" style="display:none;"></div>
+        <!-- Extras block removed; the full details are shown in the results table below -->
+    </div>
+
+    
+
+    <table id="results-table" style="display:none;">
+        <thead>
+            <tr>
+                <th>File Path</th>
+                <th>Manifest Hash (SHA256)</th>
+                <th>Status</th>
+            </tr>
+        </thead>
+        <tbody id="results-body"></tbody>
+    </table>
+    </div>
+
+    
+
+    <!-- Password Modal -->
+    <div id="pwd-modal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="pwd-title">
+        <div class="modal">
+            <h3 id="pwd-title">Enter Password</h3>
+            <p id="pwd-message">This ZIP is password‑protected. Enter the password to proceed.</p>
+            <input id="pwd-input" type="password" autocomplete="current-password" />
+            <div class="modal-actions">
+                <button id="pwd-toggle" type="button">Show Password</button>
+                <div style="flex:1"></div>
+                <button id="pwd-cancel" type="button">Cancel</button>
+                <button id="pwd-ok" type="button" class="primary">OK</button>
+            </div>
+            <div class="modal-note">All processing happens locally in your browser. No files or passwords are sent anywhere.</div>
+        </div>
+    </div>
+
+    <script>
+        // Basic environment checks
+        if (typeof JSZip === 'undefined') {
+            console.error('JSZip failed to load. Ensure network access to CDN or vendor a local copy.');
+            alert('Error: JSZip library failed to load. Please check your network connection or host a local jszip.min.js.');
+        }
+        if (!window.isSecureContext) {
+            console.warn('Not a secure context. WebCrypto (SHA-256) may be unavailable in some browsers.');
+        }
+
+        const dropZone = document.getElementById('drop-zone');
+        const fileInput = document.getElementById('file-input');
+        const statusBox = document.getElementById('status-box');
+        const resultsTable = document.getElementById('results-table');
+        const resultsBody = document.getElementById('results-body');
+        const loader = document.getElementById('loader');
+        const resultsContainer = document.getElementById('results-container');
+        const treePanel = document.getElementById('tree-panel');
+        const archiveTree = document.getElementById('archive-tree');
+        const treeView = document.getElementById('tree-view');
+        const titleEl = document.getElementById('title');
+        const introEl = document.getElementById('intro');
+        const sbomStatusEl = document.getElementById('sbom-status');
+        const sbomDetailEl = document.getElementById('sbom-detail');
+        const catStatusEl = document.getElementById('cat-status');
+        const catDetailEl = document.getElementById('cat-detail');
+        const sbomCatStatusEl = document.getElementById('sbom-cat-status');
+        const sbomCatDetailEl = document.getElementById('sbom-cat-detail');
+        const newFileBtn = document.getElementById('new-file-btn');
+
+        // Helpers for diagnostics and path handling
+        const log = (...args) => console.log('[SBOM Validator]', ...args);
+        const warn = (...args) => console.warn('[SBOM Validator]', ...args);
+        const error = (...args) => console.error('[SBOM Validator]', ...args);
+        function normalizePath(p) {
+            return p.replace(/\\/g, '/').replace(/^\.\/+/, '').replace(/\/+/, '/');
+        }
+        function toHex(buffer) {
+            return Array.from(new Uint8Array(buffer)).map(b => b.toString(16).padStart(2, '0')).join('');
+        }
+
+        const dropLabelEl = document.getElementById('drop-label');
+        if (dropLabelEl) {
+            dropLabelEl.addEventListener('click', (e) => {
+                e.stopPropagation();
+                fileInput.click();
+            });
+        }
+        if (newFileBtn) {
+            newFileBtn.addEventListener('click', (e) => {
+                e.preventDefault();
+                resetUI();
+            });
+        }
+
+        function resetUI() {
+            try {
+                // Hide results area
+                resultsTable.style.display = 'none';
+                resultsBody.innerHTML = '';
+                const statusRow = document.getElementById('status-row');
+                if (statusRow) {
+                    const badges = statusRow.querySelectorAll('.badge');
+                    // no-op; badges will be re-rendered later
+                }
+                statusBox.style.display = 'none';
+                statusBox.innerHTML = '';
+                // Clear signature section statuses
+                sbomStatusEl.textContent = 'Pending';
+                sbomDetailEl.textContent = '';
+                catStatusEl.textContent = 'Pending';
+                catDetailEl.textContent = '';
+                sbomCatStatusEl.textContent = 'Pending';
+                sbomCatDetailEl.textContent = '';
+                // Clear trees
+                archiveTree.innerHTML = '';
+                treePanel.style.display = 'none';
+                // Restore intro + drop label
+                const dropLabel = document.getElementById('drop-label');
+                if (dropLabel) dropLabel.style.display = '';
+                if (titleEl) titleEl.style.display = '';
+                if (introEl) introEl.style.display = '';
+                // Remove active styling so dashed border returns
+                dropZone.classList.remove('active');
+                // Hide results container
+                resultsContainer.style.display = 'none';
+                // Scroll to top
+                window.scrollTo({ top: 0, behavior: 'auto' });
+            } catch (_) {}
+        }
+        dropZone.ondragover = (e) => { e.preventDefault(); dropZone.classList.add('hover'); };
+        dropZone.ondragleave = () => dropZone.classList.remove('hover');
+        dropZone.ondrop = (e) => {
+            e.preventDefault();
+            dropZone.classList.remove('hover');
+            try {
+                const dt = e.dataTransfer;
+                const files = Array.from(dt.files || []);
+                console.log('[SBOM Validator] Drop types:', dt.types);
+                console.log('[SBOM Validator] Drop files:', files.map(f => `${f.name} (${f.size} bytes)`));
+                if (files.length) handleFile(files[0]);
+            } catch (err) {
+                console.error('[SBOM Validator] Drop error:', err);
+            }
+        };
+
+        fileInput.onchange = (e) => { if (e.target.files.length) handleFile(e.target.files[0]); };
+
+        async function handleFile(file) {
+            // Reset UI
+            statusBox.style.display = 'none';
+            resultsTable.style.display = 'none';
+            resultsBody.innerHTML = '';
+            loader.style.display = 'block';
+
+            try {
+                if (typeof JSZip === 'undefined') {
+                    throw new Error('JSZip not available. Cannot read ZIP.');
+                }
+                log('Selected file:', file.name, file.size + ' bytes');
+                if (!file || typeof file.size !== 'number' || file.size === 0) {
+                    throw new Error('Dropped file is 0 bytes or unreadable. If dragging from Outlook or a temp preview, save to disk and drop the saved ZIP, or click to select.');
+                }
+                // Read file bytes explicitly so we can detect/handle empty reads
+                const fileBuffer = await file.arrayBuffer();
+                if (!fileBuffer || fileBuffer.byteLength === 0) {
+                    throw new Error('Could not read ZIP bytes (0-length buffer). Try clicking to select the file instead of drag-and-drop.');
+                }
+                let zip;
+                let allEntries;
+                try {
+                    zip = await JSZip.loadAsync(fileBuffer);
+                    allEntries = Object.keys(zip.files);
+                } catch (e) {
+                    // JSZip cannot open encrypted archives
+                    if ((e?.message || '').toLowerCase().includes('encrypted zip')) {
+                        const pwd = await promptForPassword('This ZIP is password‑protected. Enter the password to proceed.');
+                        zip = await loadPasswordZipFacade(file, pwd);
+                        allEntries = Object.keys(zip.files);
+                    } else {
+                        throw e;
+                    }
+                }
+                log('ZIP entries:', allEntries.length);
+                if (allEntries.length === 0) throw new Error('ZIP appears to be empty.');
+                log('Sample entries:', allEntries.slice(0, 10));
+                
+                // 1. Locate the manifest (searching common paths used by sbom-tool)
+                let manifestPath = allEntries.find(f => f.toLowerCase().includes('manifest.spdx.json'));
+                log('Found manifest at:', manifestPath || '(none)');
+                
+                if (!manifestPath) throw new Error("Could not find '_manifest/spdx_2.2/manifest.spdx.json' inside the zip.");
+                let manifestContent;
+                try {
+                    manifestContent = await zip.file(manifestPath).async("string");
+                } catch (e) {
+                    // Possibly encrypted zip; ask password and retry with zip.js
+                    const pwd = await promptForPassword('This ZIP is password‑protected. Enter the password to proceed.');
+                    zip = await loadPasswordZipFacade(file, pwd);
+                    allEntries = Object.keys(zip.files);
+                    manifestPath = allEntries.find(f => f.toLowerCase().includes('manifest.spdx.json'));
+                    if (!manifestPath) throw new Error('Could not find manifest after decrypting ZIP.');
+                    manifestContent = await zip.file(manifestPath).async('string');
+                }
+                const manifest = JSON.parse(manifestContent);
+                log('Parsed manifest. Files declared:', manifest?.files?.length ?? 0);
+                // Switch to results view: use drop-zone as simple container (no fixed positioning)
+                dropZone.classList.add('active');
+                Object.assign(dropZone.style, {position:'', inset:'', width:'', height:'', padding:'', margin:'', display:'', flexDirection:''});
+                if (titleEl) titleEl.style.display = 'none';
+                if (introEl) introEl.style.display = 'none';
+                const label = document.getElementById('drop-label');
+                if (label) label.style.display = 'none';
+                resultsContainer.style.display = 'block';
+                treePanel.style.display = 'block';
+                if (resultsContainer.parentElement !== dropZone) { dropZone.appendChild(resultsContainer); }
+
+
+                // Compute root prefix (portion before '/_manifest/') to help resolve file paths
+                const lower = manifestPath.toLowerCase();
+                const marker = '/_manifest/';
+                const idx = lower.indexOf(marker);
+                const rootPrefix = idx > 0 ? manifestPath.substring(0, idx) : '';
+                log('Root prefix:', rootPrefix || '(none)');
+
+                let allPassed = true;
+                // Tracking for detailed reporting
+                const foundSet = new Set();
+                const manifestSet = new Set((manifest.files || []).map(it => normalizePath((it.fileName || '').replace(/^\.\//, '')).toLowerCase()));
+                let processed = 0;
+                let missing = 0;
+                let mismatched = 0;
+                const statusMap = new Map();
+
+                // 2. Iterate through files listed in the manifest
+                for (const item of (manifest.files || [])) {
+                    const cleanPath = normalizePath((item.fileName || '').replace(/^\.\//, ""));
+                    const shaEntry = (item.checksums || item.Checksums || []).find(c => (c.algorithm || c.Algorithm) === 'SHA256');
+                    const expectedHash = shaEntry?.checksumValue || shaEntry?.ChecksumValue;
+                    
+                    // Resolve file inside ZIP: try under the same root as manifest, then fallback by suffix
+                    let zippedFile = zip.file(normalizePath((rootPrefix ? rootPrefix + '/' : '') + cleanPath));
+                    if (!zippedFile) {
+                        const match = Object.keys(zip.files).find(f => {
+                            const nf = normalizePath(f);
+                            return nf.endsWith('/' + cleanPath) || nf === cleanPath;
+                        });
+                        if (match) {
+                            zippedFile = zip.file(match);
+                        }
+                    }
+                    let statusHtml = "";
+
+                    if (!zippedFile) {
+                        console.warn('[SBOM Validator] FILE', cleanPath, '=> MISSING');
+                        statusHtml = `<span class="fail">MISSING</span>`;
+                        missing++;
+                        allPassed = false;
+                        statusMap.set(cleanPath.toLowerCase(), { path: cleanPath, status: 'missing' });
+                    } else {
+                        // 3. Compute hash locally
+                        const buffer = await zippedFile.async("arraybuffer");
+                        if (!crypto?.subtle?.digest) {
+                            throw new Error('WebCrypto digest API unavailable (requires HTTPS or localhost).');
+                        }
+                        const hashBuffer = await crypto.subtle.digest("SHA-256", buffer);
+                        const actualHash = Array.from(new Uint8Array(hashBuffer)).map(b => b.toString(16).padStart(2, '0')).join('');
+
+                        if ((actualHash || '').toLowerCase() === (expectedHash || '').toLowerCase()) {
+                            console.log('[SBOM Validator] FILE', cleanPath, '=> MATCH');
+                            statusHtml = `<span class="pass">MATCH</span>`;
+                            foundSet.add(cleanPath.toLowerCase());
+                            statusMap.set(cleanPath.toLowerCase(), { path: cleanPath, status: 'ok' });
+                        } else {
+                            console.warn('[SBOM Validator] FILE', cleanPath, '=> TAMPERED', '\n expected:', expectedHash, '\n actual:  ', actualHash);
+                            statusHtml = `<span class="fail">TAMPERED</span>`;
+                            mismatched++;
+                            allPassed = false;
+                            statusMap.set(cleanPath.toLowerCase(), { path: cleanPath, status: 'bad' });
+                        }
+                    }
+
+                    processed++;
+                    const row = `<tr><td>${cleanPath}</td><td><code>${(expectedHash||'').substring(0,16)}...</code></td><td>${statusHtml}</td></tr>`;
+                    resultsBody.innerHTML += row;
+                }
+
+                // 3. Identify extras: files in the ZIP that are not in the manifest (excluding _manifest/)
+                const extras = [];
+                for (const entry of allEntries) {
+                    if (entry.endsWith('/')) continue; // skip directories
+                    const np = normalizePath(entry);
+                    const rel = (rootPrefix && np.startsWith(normalizePath(rootPrefix + '/')))
+                        ? np.substring(normalizePath(rootPrefix + '/').length)
+                        : np;
+                    if (rel.toLowerCase().startsWith('_manifest/')) continue;
+                    if (!manifestSet.has(rel.toLowerCase())) extras.push(rel);
+                }
+                for (const extra of extras) {
+                    console.warn('[SBOM Validator] FILE', extra, '=> EXTRA (not in manifest)');
+                    const row = `<tr><td>${extra}</td><td><code>—</code></td><td><span class="fail">EXTRA</span></td></tr>`;
+                    resultsBody.innerHTML += row;
+                    statusMap.set(extra.toLowerCase(), { path: extra, status: 'extra' });
+                }
+
+                // 4. Final Verdict
+                loader.style.display = 'none';
+                statusBox.className = `status ${allPassed ? 'success' : 'error'}`;
+                statusBox.innerHTML = allPassed
+                    ? `<strong>✅ Validation Passed:</strong> Processed ${processed} files. All file hashes match the manifest.`
+                    : `<strong>❌ Validation Issues:</strong> Checked ${processed} files. Missing: ${missing}, Mismatched: ${mismatched}, Extra: ${extras.length}.`;
+                statusBox.style.display = 'block';
+                resultsTable.style.display = 'table';
+                // Render tree views
+                console.log('[SBOM Validator] Rendering tree: items in statusMap =', statusMap.size);
+                treePanel.style.display = 'flex';
+                // renderTree(statusMap); // hide secondary tree; preserve legend only
+                renderArchiveTreeText(allEntries, file.name, statusMap, rootPrefix);
+                // Diagnostics: measure layout (no auto-scroll)
+                const tpStyle = window.getComputedStyle(treePanel);
+                const rcStyle = window.getComputedStyle(resultsContainer);
+                console.log('[SBOM Validator] Tree HTML length:', (treeView.innerHTML||'').length,
+                            ' treePanel.display=', tpStyle.display,
+                            ' treePanel.height=', treePanel.offsetHeight,
+                            ' treeView.height=', treeView.offsetHeight,
+                            ' resultsContainer.h=', resultsContainer.offsetHeight,
+                            ' body.h=', document.body.offsetHeight,
+                            ' vh=', window.innerHeight);
+                // Do not auto-scroll; keep user at the top by default
+                if (treePanel.offsetHeight === 0) {
+                    treePanel.style.minHeight = '40px';
+                    treePanel.style.border = '1px solid #e2e2e2';
+                }
+                try { window.scrollTo({ top: 0, behavior: 'auto' }); } catch (_) {}
+
+                // 5. SBOM integrity: compare manifest.spdx.json vs .sha256 if present
+                await verifySbomIntegrity(zip, manifestPath, manifestContent, sbomStatusEl, sbomDetailEl);
+
+                // 6. Catalog signature (best-effort cryptographic check)
+                await verifyCatalogSignature(zip, catStatusEl, catDetailEl, { scope: 'driver' });
+                await verifyCatalogSignature(zip, sbomCatStatusEl, sbomCatDetailEl, { scope: 'sbom' });
+                const dzRect = dropZone.getBoundingClientRect();
+                const rcRect = resultsContainer.getBoundingClientRect();
+                console.log('[SBOM Validator] sizes:', 'innerWH=', window.innerWidth, window.innerHeight, 'docWH=', document.documentElement.clientWidth, document.documentElement.clientHeight, 'dropZone=', Math.round(dzRect.width)+'x'+Math.round(dzRect.height), 'results=', Math.round(rcRect.width)+'x'+Math.round(rcRect.height));
+                try { window.scrollTo({ top: 0, behavior: 'auto' }); } catch (_) {}
+
+            } catch (err) {
+                loader.style.display = 'none';
+                statusBox.className = "status error";
+                statusBox.innerText = "Error: " + err.message;
+                statusBox.style.display = 'block';
+                console.error('[SBOM Validator] Error:', err);
+                // Automatic fallback: if we detected a 0-byte/virtual drop, prompt file picker
+                if (/0 bytes|0-length buffer|unreadable/i.test(err.message || '')) {
+                    setTimeout(() => {
+                        try { fileInput.click(); } catch (_) {}
+                    }, 200);
+                }
+            }
+        }
+    
+
+        function renderTree(statusMap) {
+            console.log('[SBOM Validator] renderTree() called');
+            const root = { name: '', children: new Map(), files: [] };
+            const entries = Array.from(statusMap.values());
+            const manifestEntries = entries.filter(e => e.status !== 'extra');
+            const extraEntries = entries.filter(e => e.status === 'extra');
+            console.log('[SBOM Validator] manifest entries:', manifestEntries.length, 'extras:', extraEntries.length);
+
+            for (const { path, status } of manifestEntries) addPath(root, path, status);
+            treeView.innerHTML = renderNode(root, true);
+
+            if (extraEntries.length) {
+                const ul = document.createElement('ul');
+                ul.className = 'tree-list';
+                for (const { path } of extraEntries.sort((a,b) => a.path.localeCompare(b.path))) {
+                    const li = document.createElement('li');
+                    li.innerHTML = `<span class="file">${escapeHtml(path)}</span> <span class="badge extra">EXTRA</span>`;
+                    ul.appendChild(li);
+                }
+                extrasView.innerHTML = '';
+                extrasView.appendChild(ul);
+            } else {
+                extrasView.innerHTML = '<div style="color:#666; font-size:12px;">None</div>';
+            }
+        }
+
+        function addPath(node, path, status) {
+            const parts = path.split('/').filter(Boolean);
+            for (let i = 0; i < parts.length; i++) {
+                const part = parts[i];
+                const isLast = i === parts.length - 1;
+                if (isLast) {
+                    node.files.push({ name: part, status });
+                } else {
+                    if (!node.children.has(part)) node.children.set(part, { name: part, children: new Map(), files: [] });
+                    node = node.children.get(part);
+                }
+            }
+        }
+
+        function renderNode(node, isRoot = false) {
+            const ul = document.createElement('ul');
+            ul.className = 'tree-list';
+            const dirNames = Array.from(node.children.keys()).sort((a,b) => a.localeCompare(b));
+            for (const d of dirNames) {
+                const child = node.children.get(d);
+                const li = document.createElement('li');
+                li.innerHTML = `<span class="dir">${escapeHtml(d)}</span>`;
+                li.appendChild(htmlFromString(renderNode(child)));
+                ul.appendChild(li);
+            }
+            for (const f of node.files.sort((a,b) => a.name.localeCompare(b.name))) {
+                const li = document.createElement('li');
+                const badgeClass = f.status === 'ok' ? 'ok' : (f.status === 'bad' ? 'bad' : (f.status === 'missing' ? 'missing' : 'extra'));
+                const label = f.status === 'ok' ? 'OK' : (f.status === 'bad' ? 'TAMPERED' : (f.status === 'missing' ? 'MISSING' : 'EXTRA'));
+                li.innerHTML = `<span class="file">${escapeHtml(f.name)}</span> <span class="badge ${badgeClass}">${label}</span>`;
+                ul.appendChild(li);
+            }
+            return ul.outerHTML;
+        }
+
+        function htmlFromString(html) {
+            const div = document.createElement('div');
+            div.innerHTML = html;
+            return div.firstChild;
+        }
+
+        
+        function escapeHtml(str) {
+            const map = {'&':'&amp;','<':'&lt;','>':'&gt;','\'':'&#39;','"':'&quot;'};
+            return String(str).replace(/[&<>'"]/g, s => map[s]);
+        }
+
+
+    </script>
+    
+    <script>
+        // Archive tree rendering with connected lines via CSS
+        function renderArchiveTreeText(entries, rootName, statusMap, rootPrefix) {
+            try {
+                const tree = buildTreeFromEntries(entries);
+                const lines = [];
+                const root = escapeHtml(rootName || 'archive.zip');
+                lines.push(`<span class="tree-name tree-root">${root}</span>`);
+                const children = collectChildren(tree);
+                buildTextLines(children, [], lines, statusMap, rootPrefix);
+                archiveTree.innerHTML = `<pre class="tree-pre">${lines.join('\n')}</pre>`;
+            } catch (e) {
+                console.warn('[SBOM Validator] renderArchiveTreeText error:', e);
+                archiveTree.innerHTML = `<div class="tree">(could not render archive tree)</div>`;
+            }
+        }
+
+        function buildTreeFromEntries(entries) {
+            const root = { name: '', path: '', dirs: new Map(), files: [] };
+            for (const raw of entries) {
+                const path = normalizePath(raw).replace(/^\.\/+/, '');
+                if (!path) continue;
+                const isDir = path.endsWith('/');
+                const parts = path.split('/').filter(Boolean);
+                let node = root;
+                for (let i = 0; i < parts.length; i++) {
+                    const part = parts[i];
+                    const last = i === parts.length - 1;
+                    if (last && !isDir) {
+                        const fpath = node.path ? node.path + '/' + part : part;
+                        node.files.push({ name: part, path: fpath });
+                    } else {
+                        if (!node.dirs.has(part)) {
+                            const dpath = node.path ? node.path + '/' + part : part;
+                            node.dirs.set(part, { name: part, path: dpath, dirs: new Map(), files: [] });
+                        }
+                        node = node.dirs.get(part);
+                    }
+                }
+            }
+            return root;
+        }
+
+        function collectChildren(node) {
+            const dirs = Array.from(node.dirs.values()).sort((a,b) => a.name.localeCompare(b.name)).map(d => ({ type: 'dir', node: d }));
+            const files = node.files.sort((a,b) => a.name.localeCompare(b.name)).map(f => ({ type: 'file', name: f.name, path: f.path }));
+            return [...dirs, ...files];
+        }
+
+        function buildTextLines(children, prefixFlags, out, statusMap, rootPrefix) {
+            children.forEach((child, idx) => {
+                const isLast = idx === children.length - 1;
+                const prefix = prefixFlags.map(flag => flag ? '│   ' : '    ').join('');
+                const fileJunction = isLast ? '└── ' : '├── ';
+                const dirJunction  = isLast ? '└───┬ ' : '├───┬ ';
+                if (child.type === 'file') {
+                    const rel = deriveRelPath(child.path, rootPrefix);
+                    const badge = statusBadge(statusMap, rel);
+                    out.push(prefix + fileJunction + `<span class="tree-name">${escapeHtml(child.name)}</span>` + (badge ? ' ' + badge : ''));
+                } else {
+                    const relDir = deriveRelPath(child.node.path, rootPrefix);
+                    const badgeDir = statusBadge(statusMap, relDir);
+                    out.push(prefix + dirJunction + `<span class="tree-name tree-dir">${escapeHtml(child.node.name)}/</span>` + (badgeDir ? ' ' + badgeDir : ''));
+                    const grand = collectChildren(child.node);
+                    if (grand.length) buildTextLines(grand, [...prefixFlags, !isLast], out, statusMap, rootPrefix);
+                }
+            });
+        }
+
+        async function verifySbomIntegrity(zip, manifestPath, manifestContent, statusEl, detailEl) {
+            try {
+                const baseDir = manifestPath.slice(0, manifestPath.lastIndexOf('/') + 1);
+                const shaPath = baseDir + 'manifest.spdx.json.sha256';
+                const shaFile = zip.file(shaPath);
+                if (!shaFile) {
+                    statusEl.innerHTML = '<span class="badge extra">NO SHA256</span>';
+                    detailEl.textContent = 'No manifest.spdx.json.sha256 found.';
+                    return;
+                }
+                const shaText = await shaFile.async('string');
+                const expected = (shaText.match(/[A-Fa-f0-9]{64}/) || [''])[0];
+                if (!expected) {
+                    statusEl.innerHTML = '<span class="badge bad">INVALID SHA</span>';
+                    detailEl.textContent = 'Could not parse a 64-hex SHA-256 from manifest.spdx.json.sha256.';
+                    return;
+                }
+                const enc = new TextEncoder();
+                const buf = enc.encode(manifestContent);
+                const digest = await crypto.subtle.digest('SHA-256', buf);
+                const actual = Array.from(new Uint8Array(digest)).map(b => b.toString(16).padStart(2, '0')).join('');
+                if (actual.toLowerCase() === expected.toLowerCase()) {
+                    statusEl.innerHTML = '<span class="badge ok">OK</span>';
+                    detailEl.textContent = 'manifest.spdx.json matches manifest.spdx.json.sha256';
+                } else {
+                    statusEl.innerHTML = '<span class="badge bad">MISMATCH</span>';
+                    detailEl.textContent = `Expected ${expected.slice(0,16)}..., got ${actual.slice(0,16)}...`;
+                }
+            } catch (e) {
+                statusEl.innerHTML = '<span class="badge bad">ERROR</span>';
+                detailEl.textContent = 'Error verifying SBOM hash: ' + (e?.message || e);
+            }
+        }
+
+        async function loadPkijsModules() {
+            // Try multiple CDNs and versions to avoid 404s
+            const combos = [
+                ['https://unpkg.com/asn1js@3/+esm',      'https://unpkg.com/pkijs@3/+esm'],
+                ['https://unpkg.com/asn1js@3.0.5/+esm',  'https://unpkg.com/pkijs@3.0.20/+esm'],
+                ['https://unpkg.com/asn1js@3.0.5/+esm',  'https://unpkg.com/pkijs@3.0.18/+esm'],
+                ['https://cdn.skypack.dev/asn1js@3',     'https://cdn.skypack.dev/pkijs@3'],
+                ['https://esm.sh/asn1js@3',              'https://esm.sh/pkijs@3'],
+            ];
+            let lastErr;
+            for (const [asnUrl, pkiUrl] of combos) {
+                try {
+                    const asn1js = await import(asnUrl);
+                    const pkijs = await import(pkiUrl);
+                    return { asn1js, pkijs };
+                } catch (e) { lastErr = e; }
+            }
+            throw lastErr || new Error('Failed to load PKI.js modules');
+        }
+
+        async function verifyCatalogSignature(zip, statusEl, detailEl, options = {}) {
+            try {
+                // find first .cat outside _manifest
+                const all = Object.keys(zip.files);
+                const wantSbom = options.scope === 'sbom';
+                let catPath;
+                if (wantSbom) {
+                    // Any .cat that lives under any "_manifest/" segment, regardless of top-level folder
+                    catPath = all.find(p => {
+                        const pl = normalizePath(p).toLowerCase();
+                        return pl.endsWith('.cat') && (pl.includes('/_manifest/') || pl.startsWith('_manifest/'));
+                    }) || null;
+                } else {
+                    // Driver catalog: only .cat not under any _manifest path
+                    catPath = all.find(p => {
+                        const pl = normalizePath(p).toLowerCase();
+                        return pl.endsWith('.cat') && !(pl.includes('/_manifest/') || pl.startsWith('_manifest/'));
+                    }) || null;
+                }
+                if (!catPath) {
+                    statusEl.innerHTML = '<span class="badge extra">NO CATALOG</span>';
+                    detailEl.textContent = wantSbom ? 'No SBOM .cat found in _manifest.' : 'No driver .cat found in archive.';
+                    return;
+                }
+                const catBytes = await zip.file(catPath).async('arraybuffer');
+                // Load ESM modules dynamically
+                const { asn1js, pkijs } = await loadPkijsModules();
+                // Ensure PKI.js knows about WebCrypto
+                try {
+                    const webcrypto = (window.crypto || window.msCrypto);
+                    if (pkijs.setEngine && pkijs.CryptoEngine && webcrypto?.subtle) {
+                        pkijs.setEngine('webcrypto', webcrypto, new pkijs.CryptoEngine({ name: 'webcrypto', crypto: webcrypto, subtle: webcrypto.subtle }));
+                    }
+                } catch (_) {}
+
+                const asn1 = asn1js.fromBER(catBytes);
+                if (asn1.offset === -1) throw new Error('ASN.1 parse error');
+                const contentInfo = new pkijs.ContentInfo({ schema: asn1.result });
+                if (contentInfo.contentType !== '1.2.840.113549.1.7.2') throw new Error('Not PKCS#7 SignedData');
+                const signedData = new pkijs.SignedData({ schema: contentInfo.content });
+
+                // Try cryptographic verification (no chain/revocation)
+                let verified = false;
+                try {
+                    const vr = await signedData.verify({
+                        signer: 0,
+                        // For catalogs, content is embedded (SpcIndirectDataContent); no external data required
+                    });
+                    verified = vr === true;
+                } catch (e) {
+                    verified = false;
+                }
+
+                // Extract signer info
+                const signerInfo = signedData.signerInfos[0];
+                const certs = signedData.certificates || [];
+
+                function getCN(rdn) {
+                    const tv = rdn?.typesAndValues?.find(x => x.type === '2.5.4.3');
+                    return tv ? tv.value.valueBlock.value : '';
+                }
+
+                function bufferToHex(buf) {
+                    const u = buf instanceof ArrayBuffer ? new Uint8Array(buf) : new Uint8Array(buf.buffer || buf);
+                    return Array.from(u).map(b => b.toString(16).padStart(2,'0')).join('');
+                }
+
+                function findSignerCert() {
+                    // Match by Issuer+SerialNumber if sid is IssuerAndSerialNumber
+                    if (signerInfo.sid instanceof pkijs.IssuerAndSerialNumber) {
+                        return certs.find(c => c.issuer.isEqual(signerInfo.sid.issuer) && c.serialNumber.isEqual(signerInfo.sid.serialNumber)) || certs[0];
+                    }
+                    // Else try match SubjectKeyIdentifier (sid likely ArrayBuffer)
+                    const sidBytes = signerInfo.sid;
+                    if (sidBytes) {
+                        for (const c of certs) {
+                            const ext = c.extensions?.find(e => e.extnID === '2.5.29.14');
+                            const extHex = ext?.parsedValue?.valueBlock?.valueHex;
+                            if (extHex && bufferToHex(extHex) === bufferToHex(sidBytes)) return c;
+                        }
+                    }
+                    return certs[0];
+                }
+
+                const signerCert = certs.length ? findSignerCert() : null;
+                const subjectCN = signerCert ? getCN(signerCert.subject) : '';
+                const issuerCN = signerCert ? getCN(signerCert.issuer) : '';
+
+                // Attempt to find root CN among provided certificates
+                let rootCN = '';
+                if (certs.length) {
+                    const isIssuerOf = (a, b) => a.subject.isEqual(b.issuer);
+                    const candidates = certs.filter(ca => !certs.some(cb => isIssuerOf(cb, ca) && cb !== ca));
+                    rootCN = candidates.length ? getCN(candidates[0].subject) : issuerCN;
+                }
+
+                statusEl.innerHTML = verified ? '<span class="badge ok">OK</span>' : '<span class="badge bad">UNVERIFIED</span>';
+                const signerLine = subjectCN ? ` Signer: ${subjectCN}` : '';
+                const chainLine = rootCN ? ` (Issuer: ${issuerCN || 'n/a'}, Root: ${rootCN})` : '';
+                detailEl.textContent = `${catPath}: ${verified ? 'Cryptographic signature verified.' : 'Parsed CMS structure; full trust requires OS tools.'}${signerLine}${chainLine}`;
+            } catch (e) {
+                statusEl.innerHTML = '<span class="badge bad">ERROR</span>';
+                detailEl.textContent = 'Catalog verification error: ' + (e?.message || e);
+            }
+        }
+
+        function deriveRelPath(p, rootPrefix) {
+            const np = normalizePath(p);
+            if (!rootPrefix) return np.toLowerCase();
+            const rp = normalizePath(rootPrefix + '/');
+            return np.startsWith(rp) ? np.slice(rp.length).toLowerCase() : np.toLowerCase();
+        }
+
+        function statusBadge(statusMap, relLower) {
+            if (!statusMap) return '';
+            const entry = statusMap.get(relLower);
+            if (!entry || !entry.status) return '';
+            switch (entry.status) {
+                case 'ok': return '<span class="badge ok">OK</span>';
+                case 'bad': return '<span class="badge bad">TAMPERED</span>';
+                case 'missing': return '<span class="badge missing">MISSING</span>';
+                case 'extra': return '<span class="badge extra">EXTRA</span>';
+                default: return '';
+            }
+        }
+
+        function promptForPassword(message) {
+            return new Promise((resolve, reject) => {
+                const modal = document.getElementById('pwd-modal');
+                const msg = document.getElementById('pwd-message');
+                const input = document.getElementById('pwd-input');
+                const btnOk = document.getElementById('pwd-ok');
+                const btnCancel = document.getElementById('pwd-cancel');
+                const btnToggle = document.getElementById('pwd-toggle');
+                function cleanup() {
+                    btnOk.removeEventListener('click', onOk);
+                    btnCancel.removeEventListener('click', onCancel);
+                    btnToggle.removeEventListener('click', onToggle);
+                    document.removeEventListener('keydown', onKey);
+                    modal.style.display = 'none';
+                }
+                function onOk() {
+                    const val = input.value;
+                    if (!val) { input.focus(); return; }
+                    cleanup(); resolve(val);
+                }
+                function onCancel() { cleanup(); reject(new Error('Password prompt cancelled')); }
+                function onToggle() { input.type = input.type === 'password' ? 'text' : 'password'; btnToggle.textContent = input.type === 'password' ? 'Show Password' : 'Hide Password'; input.focus(); }
+                function onKey(e) {
+                    if (e.key === 'Enter') { e.preventDefault(); onOk(); }
+                    else if (e.key === 'Escape') { e.preventDefault(); onCancel(); }
+                }
+                msg.textContent = message || 'Enter password';
+                input.value = '';
+                input.type = 'password';
+                btnToggle.textContent = 'Show Password';
+                modal.style.display = 'flex';
+                btnOk.addEventListener('click', onOk);
+                btnCancel.addEventListener('click', onCancel);
+                btnToggle.addEventListener('click', onToggle);
+                document.addEventListener('keydown', onKey);
+                setTimeout(() => input.focus(), 50);
+            });
+        }
+
+        async function loadPasswordZipFacade(file, password) {
+            // Try ESM imports first
+            const modUrls = [
+                'https://unpkg.com/@zip.js/zip.js@2.7.52/+esm',
+                'https://unpkg.com/@zip.js/zip.js@2.7.52/dist/zip.min.js?module',
+                'https://cdn.skypack.dev/@zip.js/zip.js@2.7.52',
+                'https://esm.sh/@zip.js/zip.js@2.7.52',
+            ];
+            let ZipReader, BlobReader, Uint8ArrayWriter;
+            let lastErr;
+            for (const url of modUrls) {
+                try {
+                    const m = await import(url);
+                    ZipReader = m.ZipReader || m.default?.ZipReader || m.zip?.ZipReader;
+                    BlobReader = m.BlobReader || m.default?.BlobReader || m.zip?.BlobReader;
+                    Uint8ArrayWriter = m.Uint8ArrayWriter || m.default?.Uint8ArrayWriter || m.zip?.Uint8ArrayWriter;
+                    if (ZipReader && BlobReader && Uint8ArrayWriter) break;
+                } catch (e) { lastErr = e; }
+            }
+            if (!(ZipReader && BlobReader && Uint8ArrayWriter)) {
+                // Fallback to UMD on window.zip by injecting a script tag
+                const umdUrl = 'https://unpkg.com/@zip.js/zip.js@2.7.52/dist/zip-full.min.js';
+                await new Promise((resolve, reject) => {
+                    const s = document.createElement('script');
+                    s.src = umdUrl; s.onload = resolve; s.onerror = () => reject(new Error('Failed to load zip.js UMD'));
+                    document.head.appendChild(s);
+                });
+                const z = window.zip;
+                ZipReader = z && z.ZipReader;
+                BlobReader = z && z.BlobReader;
+                Uint8ArrayWriter = z && z.Uint8ArrayWriter;
+            }
+            if (!(ZipReader && BlobReader && Uint8ArrayWriter)) throw lastErr || new Error('zip.js API not found');
+
+            const reader = new ZipReader(new BlobReader(file), { password });
+            const entries = await reader.getEntries();
+            const filesMap = {}; const dataCache = new Map();
+            function getFileObj(entry) { return { async: async (mode) => { let buf = dataCache.get(entry); if (!buf) { const data = await entry.getData(new Uint8ArrayWriter()); buf = data.buffer; dataCache.set(entry, buf);} if (mode==='string') return new TextDecoder().decode(new Uint8Array(buf)); if (mode==='arraybuffer') return buf; return buf; } }; }
+            for (const entry of entries) { filesMap[entry.filename] = true; }
+            return { files: filesMap, file: (path) => { const entry = entries.find(e => e.filename === path); if (!entry) return null; return getFileObj(entry); } };
+        }
+    </script>
+</body>
+</html>
