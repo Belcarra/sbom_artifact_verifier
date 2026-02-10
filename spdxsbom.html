@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Ericsson SBOM Verifier</title>
-    <!-- JSZip for in-browser ZIP parsing -->
+    <!-- JSZip for in-browser ZIP parsing (CDN) -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"
             integrity="sha512-XMVd28F1oH/O71fzwBnV7HucLxVwtxf26XV8P4wPk26EDxuGZ91N8bsOttmnomcCD3CS5ZMRL50H0GgOHvegtg=="
             crossorigin="anonymous" referrerpolicy="no-referrer"></script>
@@ -144,10 +144,12 @@
     <div id="status-row" class="status-row">
         <div id="status-box" class="status"></div>
         <button id="new-file-btn" type="button" class="btn new-file">New File</button>
+        <button id="back-btn" type="button" class="btn" style="display:none;">Back to Parent</button>
     </div>
 
     <div id="sig-panel" class="tree" style="margin-top:12px;">
         <h2 style="margin:0 0 8px 0; font-size:18px;">Signature & Integrity</h2>
+        <div id="package-trail" style="font-size:13px;color:#333;margin:4px 0 10px 0;"></div>
         <div id="sbom-cat-signature" style="margin-bottom:8px;">
             <strong>SBOM Catalog Signature:</strong> <span id="sbom-cat-status">Pending</span>
             <div id="sbom-cat-detail" style="font-size:12px;color:#555;margin-top:4px;"></div>
@@ -191,6 +193,23 @@
         </thead>
         <tbody id="results-body"></tbody>
     </table>
+
+    <!-- CISA 2025 Minimum Elements summary -->
+    <div id="cisa-min-elements" class="tree" style="margin-top:12px; display:none;">
+        <h2 style="margin:0 0 8px 0; font-size:18px;">SBOM Minimum Elements (CISA 2025 Draft)</h2>
+        <table style="margin-top:8px;">
+            <thead>
+                <tr>
+                    <th>Field</th>
+                    <th>Value</th>
+                </tr>
+            </thead>
+            <tbody id="min-elements-body"></tbody>
+        </table>
+        <div id="min-elements-note" style="font-size:12px;color:#555;margin-top:6px;">
+            Parsed from SPDX 2.2 JSON: creationInfo, packages, and relationships.
+        </div>
+    </div>
     </div>
 
     
@@ -240,6 +259,10 @@
         const sbomCatStatusEl = document.getElementById('sbom-cat-status');
         const sbomCatDetailEl = document.getElementById('sbom-cat-detail');
         const newFileBtn = document.getElementById('new-file-btn');
+        const backBtn = document.getElementById('back-btn');
+        const packageTrailEl = document.getElementById('package-trail');
+        const minElementsSection = document.getElementById('cisa-min-elements');
+        const minElementsBody = document.getElementById('min-elements-body');
 
         // Helpers for diagnostics and path handling
         const log = (...args) => console.log('[SBOM Validator]', ...args);
@@ -252,6 +275,11 @@
             return Array.from(new Uint8Array(buffer)).map(b => b.toString(16).padStart(2, '0')).join('');
         }
 
+        // Session password cache so returning to parent does not prompt again
+        const passwordCache = new Map(); // key: `${name}:${size}` => password
+        const fileKey = (file) => `${file?.name || ''}:${file?.size || 0}`;
+        const looksEncryptedError = (e) => /encrypted zip|password/i.test(String(e?.message || ''));
+
         const dropLabelEl = document.getElementById('drop-label');
         if (dropLabelEl) {
             dropLabelEl.addEventListener('click', (e) => {
@@ -263,6 +291,21 @@
             newFileBtn.addEventListener('click', (e) => {
                 e.preventDefault();
                 resetUI();
+            });
+        }
+        if (backBtn) {
+            backBtn.addEventListener('click', async (e) => {
+                e.preventDefault();
+                try {
+                    if (packageStack.length > 1) {
+                        // Remove current nested file
+                        packageStack.pop();
+                        const top = packageStack[packageStack.length - 1];
+                        if (top?.file) {
+                            await handleFile(top.file, { isBackNav: true });
+                        }
+                    }
+                } catch (err) { console.error('[SBOM Validator] Back navigation failed:', err); }
             });
         }
 
@@ -299,6 +342,9 @@
                 resultsContainer.style.display = 'none';
                 // Scroll to top
                 window.scrollTo({ top: 0, behavior: 'auto' });
+                // Reset package trail
+                packageStack = [];
+                updatePackageTrail();
             } catch (_) {}
         }
         dropZone.ondragover = (e) => { e.preventDefault(); dropZone.classList.add('hover'); };
@@ -317,9 +363,41 @@
             }
         };
 
+        // Global drag/drop: prevent browser default (navigate/open) and accept drops anywhere
+        window.addEventListener('dragover', (e) => {
+            try { e.preventDefault(); if (e.dataTransfer) e.dataTransfer.dropEffect = 'copy'; dropZone.classList.add('hover'); } catch (_) {}
+        });
+        window.addEventListener('drop', (e) => {
+            try {
+                e.preventDefault();
+                dropZone.classList.remove('hover');
+                const files = Array.from(e.dataTransfer?.files || []);
+                if (files.length) handleFile(files[0]);
+            } catch (err) { console.error('[SBOM Validator] Global drop error:', err); }
+        });
+
         fileInput.onchange = (e) => { if (e.target.files.length) handleFile(e.target.files[0]); };
 
-        async function handleFile(file) {
+        let packageStack = [];
+
+        function updatePackageTrail() {
+            try {
+                if (!packageTrailEl) return;
+                const trail = packageStack.map(e => e.name);
+                if (!trail.length) { packageTrailEl.innerHTML = ''; backBtn.style.display = 'none'; return; }
+                if (trail.length === 1) {
+                    packageTrailEl.innerHTML = `<div><strong>Package:</strong> ${escapeHtml(trail[0])}</div>`;
+                    backBtn.style.display = 'none';
+                } else {
+                    const top = trail[0];
+                    const last = trail[trail.length - 1];
+                    packageTrailEl.innerHTML = `<div><strong>Package:</strong> ${escapeHtml(top)}</div><div><strong>Nested:</strong> ${escapeHtml(last)}</div>`;
+                    backBtn.style.display = '';
+                }
+            } catch (_) {}
+        }
+
+        async function handleFile(file, ctx = {}) {
             // Reset UI
             statusBox.style.display = 'none';
             resultsTable.style.display = 'none';
@@ -330,6 +408,17 @@
                 if (typeof JSZip === 'undefined') {
                     throw new Error('JSZip not available. Cannot read ZIP.');
                 }
+                // Maintain package stack for nested navigation
+                if (ctx.isBackNav) {
+                    // stack already adjusted by back handler
+                } else if (ctx.pushNested) {
+                    packageStack.push({ name: file.name, file });
+                } else {
+                    // new top-level file
+                    packageStack = [{ name: file.name, file }];
+                }
+                updatePackageTrail();
+
                 log('Selected file:', file.name, file.size + ' bytes');
                 if (!file || typeof file.size !== 'number' || file.size === 0) {
                     throw new Error('Dropped file is 0 bytes or unreadable. If dragging from Outlook or a temp preview, save to disk and drop the saved ZIP, or click to select.');
@@ -346,10 +435,26 @@
                     allEntries = Object.keys(zip.files);
                 } catch (e) {
                     // JSZip cannot open encrypted archives
-                    if ((e?.message || '').toLowerCase().includes('encrypted zip')) {
-                        const pwd = await promptForPassword('This ZIP is password‑protected. Enter the password to proceed.');
-                        zip = await loadPasswordZipFacade(file, pwd);
-                        allEntries = Object.keys(zip.files);
+                    if (looksEncryptedError(e)) {
+                        const k = fileKey(file);
+                        const cached = passwordCache.get(k);
+                        if (cached) {
+                            try {
+                                zip = await loadPasswordZipFacade(file, cached);
+                                allEntries = Object.keys(zip.files);
+                            } catch (e2) {
+                                // Cached password failed; prompt again
+                                const pwd = await promptForPassword('This ZIP is password‑protected. Enter the password to proceed.');
+                                passwordCache.set(k, pwd);
+                                zip = await loadPasswordZipFacade(file, pwd);
+                                allEntries = Object.keys(zip.files);
+                            }
+                        } else {
+                            const pwd = await promptForPassword('This ZIP is password‑protected. Enter the password to proceed.');
+                            passwordCache.set(k, pwd);
+                            zip = await loadPasswordZipFacade(file, pwd);
+                            allEntries = Object.keys(zip.files);
+                        }
                     } else {
                         throw e;
                     }
@@ -367,9 +472,22 @@
                 try {
                     manifestContent = await zip.file(manifestPath).async("string");
                 } catch (e) {
-                    // Possibly encrypted zip; ask password and retry with zip.js
-                    const pwd = await promptForPassword('This ZIP is password‑protected. Enter the password to proceed.');
-                    zip = await loadPasswordZipFacade(file, pwd);
+                    // Possibly encrypted zip; use cached password if present, else prompt
+                    const k = fileKey(file);
+                    const cached = passwordCache.get(k);
+                    if (cached) {
+                        try {
+                            zip = await loadPasswordZipFacade(file, cached);
+                        } catch (e2) {
+                            const pwd = await promptForPassword('This ZIP is password‑protected. Enter the password to proceed.');
+                            passwordCache.set(k, pwd);
+                            zip = await loadPasswordZipFacade(file, pwd);
+                        }
+                    } else {
+                        const pwd = await promptForPassword('This ZIP is password‑protected. Enter the password to proceed.');
+                        passwordCache.set(k, pwd);
+                        zip = await loadPasswordZipFacade(file, pwd);
+                    }
                     allEntries = Object.keys(zip.files);
                     manifestPath = allEntries.find(f => f.toLowerCase().includes('manifest.spdx.json'));
                     if (!manifestPath) throw new Error('Could not find manifest after decrypting ZIP.');
@@ -512,6 +630,9 @@
                 // 6. Catalog signature (best-effort cryptographic check)
                 await verifyCatalogSignature(zip, catStatusEl, catDetailEl, { scope: 'driver' });
                 await verifyCatalogSignature(zip, sbomCatStatusEl, sbomCatDetailEl, { scope: 'sbom' });
+
+                // 7. Render CISA Minimum Elements summary table
+                try { renderMinimumElements(manifest, zip); } catch (e) { console.warn('[SBOM Validator] Minimum Elements rendering error:', e); }
                 const dzRect = dropZone.getBoundingClientRect();
                 const rcRect = resultsContainer.getBoundingClientRect();
                 console.log('[SBOM Validator] sizes:', 'innerWH=', window.innerWidth, window.innerHeight, 'docWH=', document.documentElement.clientWidth, document.documentElement.clientHeight, 'dropZone=', Math.round(dzRect.width)+'x'+Math.round(dzRect.height), 'results=', Math.round(rcRect.width)+'x'+Math.round(rcRect.height));
@@ -695,9 +816,9 @@
                     detailEl.textContent = 'Could not parse a 64-hex SHA-256 from manifest.spdx.json.sha256.';
                     return;
                 }
-                const enc = new TextEncoder();
-                const buf = enc.encode(manifestContent);
-                const digest = await crypto.subtle.digest('SHA-256', buf);
+                // Compute SHA-256 over the exact bytes of manifest.spdx.json as stored in the ZIP
+                const manifestBytes = await zip.file(manifestPath).async('arraybuffer');
+                const digest = await crypto.subtle.digest('SHA-256', manifestBytes);
                 const actual = Array.from(new Uint8Array(digest)).map(b => b.toString(16).padStart(2, '0')).join('');
                 if (actual.toLowerCase() === expected.toLowerCase()) {
                     statusEl.innerHTML = '<span class="badge ok">OK</span>';
@@ -713,7 +834,21 @@
         }
 
         async function loadPkijsModules() {
-            // Try multiple CDNs and versions to avoid 404s
+            // Prefer local vendor ESM first
+            const localCombos = [
+                ['./vendor/asn1js/asn1js.min.js', './vendor/pkijs/pkijs.min.js'],
+                ['./vendor/asn1js/asn1js.min.mjs', './vendor/pkijs/pkijs.min.mjs'],
+            ];
+            let lastErr;
+            for (const [asnUrl, pkiUrl] of localCombos) {
+                try {
+                    const asn1js = await import(asnUrl);
+                    const pkijs = await import(pkiUrl);
+                    return { asn1js, pkijs };
+                } catch (e) { lastErr = e; }
+            }
+
+            // Then try multiple CDNs and versions to avoid 404s
             const combos = [
                 ['https://unpkg.com/asn1js@3/+esm',      'https://unpkg.com/pkijs@3/+esm'],
                 ['https://unpkg.com/asn1js@3.0.5/+esm',  'https://unpkg.com/pkijs@3.0.20/+esm'],
@@ -721,7 +856,6 @@
                 ['https://cdn.skypack.dev/asn1js@3',     'https://cdn.skypack.dev/pkijs@3'],
                 ['https://esm.sh/asn1js@3',              'https://esm.sh/pkijs@3'],
             ];
-            let lastErr;
             for (const [asnUrl, pkiUrl] of combos) {
                 try {
                     const asn1js = await import(asnUrl);
@@ -729,6 +863,22 @@
                     return { asn1js, pkijs };
                 } catch (e) { lastErr = e; }
             }
+
+            // Optional UMD local fallback (if vendored globals are available)
+            try {
+                await new Promise((resolve, reject) => {
+                    let loaded = 0;
+                    function done() { if (++loaded === 2) resolve(); }
+                    const a = document.createElement('script');
+                    a.src = './vendor/asn1js/asn1js.min.js'; a.onload = done; a.onerror = reject; document.head.appendChild(a);
+                    const p = document.createElement('script');
+                    p.src = './vendor/pkijs/pkijs.min.js'; p.onload = done; p.onerror = reject; document.head.appendChild(p);
+                });
+                if (window.asn1js && window.pkijs) {
+                    return { asn1js: window.asn1js, pkijs: window.pkijs };
+                }
+            } catch (e) { lastErr = e; }
+
             throw lastErr || new Error('Failed to load PKI.js modules');
         }
 
@@ -838,6 +988,127 @@
             }
         }
 
+        function renderMinimumElements(manifest, zip) {
+            if (!manifest || typeof manifest !== 'object') return;
+            const rows = extractMinimumElements(manifest);
+            // Clear table body and populate
+            minElementsBody.innerHTML = '';
+            const esc = (s) => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#39;'}[c]));
+            const addRow = (label, value) => {
+                const safe = (value && String(value).trim().length) ? esc(String(value)) : '—';
+                minElementsBody.innerHTML += `<tr><td>${esc(label)}</td><td>${safe}</td></tr>`;
+            };
+            addRow('SBOM Author', rows.author || '');
+            addRow('Component Name', rows.componentName || '');
+            addRow('Component Version', rows.componentVersion || '');
+            // Dependency with optional second line for contained zip filename + clickable link
+            if (rows.dependency || rows.dependencyZipPath) {
+                const depHtml = `<div>${esc(rows.dependency || '')}</div>` + (rows.dependencyZipName ? `<div><a href="#" id="dep-zip-link">${esc(rows.dependencyZipName)}</a></div>` : '');
+                minElementsBody.innerHTML += `<tr><td>Dependency Relationship</td><td>${depHtml}</td></tr>`;
+                // Attach click if we can find the entry inside the zip
+                if (rows.dependencyZipPath) {
+                    setTimeout(() => {
+                        const link = document.getElementById('dep-zip-link');
+                        if (link) {
+                            link.addEventListener('click', async (e) => {
+                                e.preventDefault();
+                                try {
+                                    const target = rows.dependencyZipPath.replace(/^\.\//, '');
+                                    // Find in zip by exact or suffix match
+                                    const keys = Object.keys(zip.files);
+                                    let match = keys.find(k => normalizePath(k).endsWith('/' + normalizePath(target)))
+                                             || keys.find(k => normalizePath(k) === normalizePath(target))
+                                             || null;
+                                    if (!match) throw new Error('Nested ZIP not found in archive: ' + target);
+                                    const buf = await zip.file(match).async('arraybuffer');
+                                    const nested = new File([buf], rows.dependencyZipName || 'nested.zip', { type: 'application/zip' });
+                                    // Push nested onto stack
+                                    await handleFile(nested, { pushNested: true });
+                                } catch (err) { console.error('[SBOM Validator] Nested ZIP open failed:', err); }
+                            });
+                        }
+                    }, 0);
+                }
+            } else {
+                addRow('Dependency Relationship', '');
+            }
+            addRow('Tool Name', rows.toolName || '');
+            addRow('Timestamp', rows.timestamp || '');
+            // Show section
+            minElementsSection.style.display = 'block';
+        }
+
+        function extractMinimumElements(manifest) {
+            const out = { author: '', componentName: '', componentVersion: '', dependency: '', toolName: '', timestamp: '', dependencyZipPath: '', dependencyZipName: '' };
+            try {
+                // Timestamp and creators
+                const ci = manifest.creationInfo || {};
+                out.timestamp = ci.created || '';
+                const creators = Array.isArray(ci.creators) ? ci.creators : [];
+                const authors = creators.filter(c => /^\s*(Person|Organization)\s*:/i.test(c)).map(c => c.replace(/^\s*(Person|Organization)\s*:\s*/i, '').trim());
+                out.author = authors.join(', ');
+                const tools = creators.filter(c => /^\s*Tool\s*:/i.test(c)).map(c => c.replace(/^\s*Tool\s*:\s*/i, '').trim());
+                out.toolName = tools.join(', ');
+
+                // Determine root package
+                const pkgs = Array.isArray(manifest.packages) ? manifest.packages : [];
+                const idToName = new Map();
+                for (const p of pkgs) {
+                    if (p && p.SPDXID) {
+                        const nm = p.name || '';
+                        const ver = p.versionInfo || '';
+                        idToName.set(p.SPDXID, ver ? `${nm} ${ver}` : nm || p.SPDXID);
+                    }
+                }
+                const files = Array.isArray(manifest.files) ? manifest.files : [];
+                for (const f of files) {
+                    if (f && f.SPDXID) idToName.set(f.SPDXID, f.fileName || f.SPDXID);
+                }
+                idToName.set('SPDXRef-DOCUMENT', manifest.name || 'SPDX Document');
+
+                let rootId = '';
+                if (Array.isArray(manifest.documentDescribes) && manifest.documentDescribes.length) {
+                    rootId = manifest.documentDescribes[0];
+                } else if (Array.isArray(manifest.relationships)) {
+                    const r = manifest.relationships.find(r => r.relationshipType === 'DESCRIBES' && r.spdxElementId === 'SPDXRef-DOCUMENT');
+                    if (r) rootId = r.relatedSpdxElement;
+                }
+                let rootPkg = pkgs.find(p => p.SPDXID === rootId) || pkgs[0] || null;
+                out.componentName = rootPkg?.name || '';
+                out.componentVersion = rootPkg?.versionInfo || '';
+                if (!out.author && rootPkg?.supplier) {
+                    out.author = String(rootPkg.supplier).replace(/^\s*(Person|Organization)\s*:\s*/i, '').trim();
+                }
+
+                // Dependency relationship
+                let depText = '';
+                if (Array.isArray(manifest.relationships) && rootId) {
+                    const rels = manifest.relationships;
+                    // Prefer relation from RootPackage to a File that looks like a .zip
+                    let rel = rels.find(r => r.spdxElementId === rootId && /^SPDXRef-File/i.test(String(r.relatedSpdxElement || '')));
+                    // If not found, fall back to DEPENDS_ON, else any relation involving root
+                    if (!rel) rel = rels.find(r => (r.relationshipType === 'DEPENDS_ON') && (r.spdxElementId === rootId || r.relatedSpdxElement === rootId));
+                    if (!rel) rel = rels.find(r => (r.spdxElementId === rootId || r.relatedSpdxElement === rootId));
+                    if (rel) {
+                        const from = idToName.get(rel.spdxElementId) || rel.spdxElementId || '';
+                        const to = idToName.get(rel.relatedSpdxElement) || rel.relatedSpdxElement || '';
+                        depText = `${from} ${rel.relationshipType} ${to}`;
+                        // If related is a file, try to find its fileName to expose a clickable link
+                        const relFile = (Array.isArray(files) ? files : []).find(f => f.SPDXID === rel.relatedSpdxElement);
+                        if (relFile && relFile.fileName) {
+                            const clean = String(relFile.fileName).replace(/^\.\//, '');
+                            out.dependencyZipPath = clean;
+                            out.dependencyZipName = clean.split('/').pop();
+                        }
+                    }
+                }
+                out.dependency = depText || '';
+            } catch (e) {
+                console.warn('[SBOM Validator] extractMinimumElements error:', e);
+            }
+            return out;
+        }
+
         function deriveRelPath(p, rootPrefix) {
             const np = normalizePath(p);
             if (!rootPrefix) return np.toLowerCase();
@@ -898,8 +1169,11 @@
         }
 
         async function loadPasswordZipFacade(file, password) {
-            // Try ESM imports first
+            // Try local ESM first, then CDN ESM
             const modUrls = [
+                './vendor/zip.js/zip.min.js?module',
+                './vendor/zip.js/zip.js',
+                './vendor/zip.js/zip-full.min.js?module',
                 'https://unpkg.com/@zip.js/zip.js@2.7.52/+esm',
                 'https://unpkg.com/@zip.js/zip.js@2.7.52/dist/zip.min.js?module',
                 'https://cdn.skypack.dev/@zip.js/zip.js@2.7.52',
@@ -917,13 +1191,17 @@
                 } catch (e) { lastErr = e; }
             }
             if (!(ZipReader && BlobReader && Uint8ArrayWriter)) {
-                // Fallback to UMD on window.zip by injecting a script tag
-                const umdUrl = 'https://unpkg.com/@zip.js/zip.js@2.7.52/dist/zip-full.min.js';
-                await new Promise((resolve, reject) => {
+                // Fallback to UMD: try local vendor first, then CDN
+                const tryUmd = async (src) => new Promise((resolve, reject) => {
                     const s = document.createElement('script');
-                    s.src = umdUrl; s.onload = resolve; s.onerror = () => reject(new Error('Failed to load zip.js UMD'));
+                    s.src = src; s.onload = resolve; s.onerror = () => reject(new Error('Failed to load zip.js UMD'));
                     document.head.appendChild(s);
                 });
+                try {
+                    await tryUmd('./vendor/zip.js/zip-full.min.js');
+                } catch (_) {
+                    await tryUmd('https://unpkg.com/@zip.js/zip.js@2.7.52/dist/zip-full.min.js');
+                }
                 const z = window.zip;
                 ZipReader = z && z.ZipReader;
                 BlobReader = z && z.BlobReader;

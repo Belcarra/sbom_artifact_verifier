@@ -35,6 +35,14 @@ No data leaves your machine: all processing happens locally in your browser.
 - zip.js: only used for password‑protected ZIPs.
 - asn1js + PKI.js: PKCS#7/CMS parsing and cryptographic verification of `.cat`.
 
+## Offline Use (vendor deps)
+- Place libraries under `vendor/` to avoid CDNs:
+  - `vendor/jszip/jszip.min.js`
+  - `vendor/zip.js/zip.min.js` or `vendor/zip.js/zip.js` (ESM); optional `vendor/zip.js/zip-full.min.js` (UMD)
+  - `vendor/asn1js/asn1js.min.js` and `vendor/pkijs/pkijs.min.js` (ESM)
+- The app prefers vendor ESM first, then CDN ESM, then UMD fallbacks.
+- If network is blocked and vendor files are missing, loaders will show an error.
+
 ## Deployment
 The page is static (HTML/JS/CSS) and can be hosted on GitHub Pages. For example:
 https://verifier.belcarra.com
@@ -45,4 +53,3 @@ GitHub: https://github.com/Belcarra/sbom_artifact_verifier
 ## Security & Privacy
 All processing and cryptographic checks happen locally in the browser tab. 
 No files or passwords are sent to any server.
-
