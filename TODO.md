@@ -1,13 +1,5 @@
 # TODO for sbom_artifact_verifier
 
-## 1) Make it 100% offline (vendor deps)
-- Vendor dependencies locally and prefer them over CDNs:
-  - `vendor/jszip/jszip.min.js` (ZIP reading)
-  - `vendor/zip.js/zip-full.min.js` (password‑protected ZIPs, UMD)
-  - `vendor/asn1js/asn1js.min.js` and `vendor/pkijs/pkijs.min.js` (CMS/PKCS#7)
-- Adjust loaders to try vendor first, then CDN ESM, then UMD fallback.
-- If any CDN fallbacks remain, add SRI and document the policy.
-
 ## 2) Pages/hosting
 - New public repo: `Belcarra/sbom_artifact_verifier` with:
   - `index.html` (landing/redirect), `spdxsbom.html`, `README.md`

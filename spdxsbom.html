@@ -220,6 +220,7 @@
         <div class="modal">
             <h3 id="pwd-title">Enter Password</h3>
             <p id="pwd-message">This ZIP is password‑protected. Enter the password to proceed.</p>
+            <p id="pwd-file" class="modal-note" style="margin-top:6px;"></p>
             <input id="pwd-input" type="password" autocomplete="current-password" />
             <div class="modal-actions">
                 <button id="pwd-toggle" type="button">Show Password</button>
@@ -257,6 +258,7 @@
         const sbomDetailEl = document.getElementById('sbom-detail');
         const catStatusEl = document.getElementById('cat-status');
         const catDetailEl = document.getElementById('cat-detail');
+        const catSection = document.getElementById('cat-signature');
         const sbomCatStatusEl = document.getElementById('sbom-cat-status');
         const sbomCatDetailEl = document.getElementById('sbom-cat-detail');
         const newFileBtn = document.getElementById('new-file-btn');
@@ -322,6 +324,7 @@
                 }
                 statusBox.style.display = 'none';
                 statusBox.innerHTML = '';
+                loader.style.display = 'none';
                 // Clear signature section statuses
                 sbomStatusEl.textContent = 'Pending';
                 sbomDetailEl.textContent = '';
@@ -329,9 +332,16 @@
                 catDetailEl.textContent = '';
                 sbomCatStatusEl.textContent = 'Pending';
                 sbomCatDetailEl.textContent = '';
+                // Hide driver catalog section until a catalog is found
+                if (catSection) { catSection.style.display = 'none'; }
                 // Clear trees
                 archiveTree.innerHTML = '';
                 treePanel.style.display = 'none';
+                // Hide minimum elements panel and clear it
+                try {
+                    if (minElementsSection) minElementsSection.style.display = 'none';
+                    if (minElementsBody) minElementsBody.innerHTML = '';
+                } catch (_) {}
                 // Restore intro + drop label
                 const dropLabel = document.getElementById('drop-label');
                 if (dropLabel) dropLabel.style.display = '';
@@ -346,36 +356,49 @@
                 // Reset package trail
                 packageStack = [];
                 updatePackageTrail();
+                // Allow re-selecting the same file again
+                try { fileInput.value = ''; } catch(_) {}
             } catch (_) {}
         }
-        dropZone.ondragover = (e) => { e.preventDefault(); dropZone.classList.add('hover'); };
-        dropZone.ondragleave = () => dropZone.classList.remove('hover');
-        dropZone.ondrop = (e) => {
-            e.preventDefault();
-            dropZone.classList.remove('hover');
+        // Drag & Drop handlers (robust, capture-phase)
+        const onLocalDragOver = (e) => { try { e.preventDefault(); e.stopPropagation(); dropZone.classList.add('hover'); if (e.dataTransfer) e.dataTransfer.dropEffect = 'copy'; } catch(_) {} };
+        const onLocalDragLeave = () => { try { dropZone.classList.remove('hover'); } catch(_) {} };
+        const onLocalDrop = (e) => {
             try {
+                e.preventDefault(); e.stopPropagation();
+                dropZone.classList.remove('hover');
                 const dt = e.dataTransfer;
-                const files = Array.from(dt.files || []);
-                console.log('[SBOM Validator] Drop types:', dt.types);
-                console.log('[SBOM Validator] Drop files:', files.map(f => `${f.name} (${f.size} bytes)`));
-                if (files.length) handleFile(files[0]);
-            } catch (err) {
-                console.error('[SBOM Validator] Drop error:', err);
-            }
+                let files = Array.from(dt?.files || []);
+                if (!files.length && dt?.items && dt.items.length) {
+                    files = Array.from(dt.items).filter(it => it.kind === 'file').map(it => it.getAsFile()).filter(Boolean);
+                }
+                console.log('[SBOM Validator] Local drop files:', files.map(f => `${f.name} (${f.size} bytes)`));
+                if (files.length) return handleFile(files[0]);
+            } catch (err) { console.error('[SBOM Validator] Drop error:', err); }
         };
+        dropZone.addEventListener('dragover', onLocalDragOver, { capture: true });
+        dropZone.addEventListener('dragenter', onLocalDragOver, { capture: true });
+        dropZone.addEventListener('dragleave', onLocalDragLeave, { capture: true });
+        dropZone.addEventListener('drop', onLocalDrop, { capture: true });
 
         // Global drag/drop: prevent browser default (navigate/open) and accept drops anywhere
-        window.addEventListener('dragover', (e) => {
-            try { e.preventDefault(); if (e.dataTransfer) e.dataTransfer.dropEffect = 'copy'; dropZone.classList.add('hover'); } catch (_) {}
-        });
-        window.addEventListener('drop', (e) => {
+        const onGlobalDragOver = (e) => { try { e.preventDefault(); e.stopPropagation(); if (e.dataTransfer) e.dataTransfer.dropEffect = 'copy'; dropZone.classList.add('hover'); } catch (_) {} };
+        const onGlobalDrop = (e) => {
             try {
-                e.preventDefault();
+                e.preventDefault(); e.stopPropagation();
                 dropZone.classList.remove('hover');
-                const files = Array.from(e.dataTransfer?.files || []);
-                if (files.length) handleFile(files[0]);
+                let files = Array.from(e.dataTransfer?.files || []);
+                if (!files.length && e.dataTransfer?.items && e.dataTransfer.items.length) {
+                    files = Array.from(e.dataTransfer.items).filter(it => it.kind === 'file').map(it => it.getAsFile()).filter(Boolean);
+                }
+                console.log('[SBOM Validator] Global drop files:', files.map(f => `${f.name} (${f.size} bytes)`));
+                if (files.length) return handleFile(files[0]);
             } catch (err) { console.error('[SBOM Validator] Global drop error:', err); }
-        });
+        };
+        window.addEventListener('dragenter', onGlobalDragOver, { capture: true });
+        window.addEventListener('dragover', onGlobalDragOver, { capture: true });
+        window.addEventListener('dragleave', () => dropZone.classList.remove('hover'), { capture: true });
+        window.addEventListener('drop', onGlobalDrop, { capture: true });
 
         fileInput.onchange = (e) => { if (e.target.files.length) handleFile(e.target.files[0]); };
 
@@ -399,28 +422,21 @@
         }
 
         async function handleFile(file, ctx = {}) {
-            // Reset UI
-            statusBox.style.display = 'none';
-            resultsTable.style.display = 'none';
-            resultsBody.innerHTML = '';
+            // Do not reset UI until after we confirm we can read the file successfully.
+            const isNested = !!ctx.pushNested;
+            const isBack = !!ctx.isBackNav;
+            let didLandingResetForPwd = false;
+            // Starting a brand-new top-level open: clear any previous passwords
+            if (!isNested && !isBack) {
+                try { if (passwordCache && passwordCache.clear) passwordCache.clear(); } catch(_) {}
+            }
             loader.style.display = 'block';
 
             try {
                 if (typeof JSZip === 'undefined') {
                     throw new Error('JSZip not available. Cannot read ZIP.');
                 }
-                // Maintain package stack for nested navigation
-                if (ctx.isBackNav) {
-                    // stack already adjusted by back handler
-                } else if (ctx.pushNested) {
-                    packageStack.push({ name: file.name, file });
-                } else {
-                    // new top-level file
-                    packageStack = [{ name: file.name, file }];
-                }
-                updatePackageTrail();
-
-                log('Selected file:', file.name, file.size + ' bytes');
+                log('Selected file:', file?.name, (file?.size || 0) + ' bytes');
                 if (!file || typeof file.size !== 'number' || file.size === 0) {
                     throw new Error('Dropped file is 0 bytes or unreadable. If dragging from Outlook or a temp preview, save to disk and drop the saved ZIP, or click to select.');
                 }
@@ -445,13 +461,15 @@
                                 allEntries = Object.keys(zip.files);
                             } catch (e2) {
                                 // Cached password failed; prompt again
-                                const pwd = await promptForPassword('This ZIP is password‑protected. Enter the password to proceed.');
+                                if (!isNested && !isBack && !didLandingResetForPwd) { resetUI(); didLandingResetForPwd = true; }
+                                const pwd = await promptForPassword('This ZIP is password‑protected. Enter the password to proceed.', file?.name);
                                 passwordCache.set(k, pwd);
                                 zip = await loadPasswordZipFacade(file, pwd);
                                 allEntries = Object.keys(zip.files);
                             }
                         } else {
-                            const pwd = await promptForPassword('This ZIP is password‑protected. Enter the password to proceed.');
+                            if (!isNested && !isBack && !didLandingResetForPwd) { resetUI(); didLandingResetForPwd = true; }
+                            const pwd = await promptForPassword('This ZIP is password‑protected. Enter the password to proceed.', file?.name);
                             passwordCache.set(k, pwd);
                             zip = await loadPasswordZipFacade(file, pwd);
                             allEntries = Object.keys(zip.files);
@@ -460,6 +478,25 @@
                         throw e;
                     }
                 }
+                // At this point, we have a readable ZIP. If this is a new top-level open,
+                // perform a full reset before rendering.
+                if (!isNested && !isBack && !didLandingResetForPwd) {
+                    resetUI();
+                } else {
+                    statusBox.style.display = 'none';
+                    resultsTable.style.display = 'none';
+                    resultsBody.innerHTML = '';
+                }
+                // Maintain package stack for navigation
+                if (isBack) {
+                    // stack already adjusted by back handler
+                } else if (isNested) {
+                    packageStack.push({ name: file.name, file });
+                } else {
+                    // new top-level file
+                    packageStack = [{ name: file.name, file }];
+                }
+                updatePackageTrail();
                 log('ZIP entries:', allEntries.length);
                 if (allEntries.length === 0) throw new Error('ZIP appears to be empty.');
                 log('Sample entries:', allEntries.slice(0, 10));
@@ -480,12 +517,14 @@
                         try {
                             zip = await loadPasswordZipFacade(file, cached);
                         } catch (e2) {
-                            const pwd = await promptForPassword('This ZIP is password‑protected. Enter the password to proceed.');
+                            if (!isNested && !isBack && !didLandingResetForPwd) { resetUI(); didLandingResetForPwd = true; }
+                            const pwd = await promptForPassword('This ZIP is password‑protected. Enter the password to proceed.', file?.name);
                             passwordCache.set(k, pwd);
                             zip = await loadPasswordZipFacade(file, pwd);
                         }
                     } else {
-                        const pwd = await promptForPassword('This ZIP is password‑protected. Enter the password to proceed.');
+                        if (!isNested && !isBack && !didLandingResetForPwd) { resetUI(); didLandingResetForPwd = true; }
+                        const pwd = await promptForPassword('This ZIP is password‑protected. Enter the password to proceed.', file?.name);
                         passwordCache.set(k, pwd);
                         zip = await loadPasswordZipFacade(file, pwd);
                     }
@@ -641,10 +680,27 @@
 
             } catch (err) {
                 loader.style.display = 'none';
+                const msg = (err?.message || String(err) || '').toLowerCase();
+                // If user cancelled a password prompt, return to clean landing page silently
+                if (msg.includes('password prompt cancelled')) {
+                    resetUI();
+                    return;
+                }
                 statusBox.className = "status error";
-                statusBox.innerText = "Error: " + err.message;
-                statusBox.style.display = 'block';
+                statusBox.innerText = "Error: " + (err?.message || String(err));
                 console.error('[SBOM Validator] Error:', err);
+                // Ensure error is visible even from landing state for real errors
+                dropZone.classList.add('active');
+                try {
+                    const label = document.getElementById('drop-label');
+                    if (label) label.style.display = 'none';
+                    if (titleEl) titleEl.style.display = 'none';
+                    if (introEl) introEl.style.display = 'none';
+                } catch(_) {}
+                resultsContainer.style.display = 'block';
+                treePanel.style.display = 'none';
+                statusBox.style.display = 'block';
+                try { window.scrollTo({ top: 0, behavior: 'auto' }); } catch(_) {}
                 // Automatic fallback: if we detected a 0-byte/virtual drop, prompt file picker
                 if (/0 bytes|0-length buffer|unreadable/i.test(err.message || '')) {
                     setTimeout(() => {
@@ -903,10 +959,20 @@
                     }) || null;
                 }
                 if (!catPath) {
-                    statusEl.innerHTML = '<span class="badge extra">NO CATALOG</span>';
-                    detailEl.textContent = wantSbom ? 'No SBOM .cat found in _manifest.' : 'No driver .cat found in archive.';
+                    if (wantSbom) {
+                        statusEl.innerHTML = '<span class="badge extra">NO CATALOG</span>';
+                        detailEl.textContent = 'No SBOM .cat found in _manifest.';
+                    } else {
+                        // For driver catalog: hide the entire section when not present
+                        const sec = document.getElementById('cat-signature');
+                        if (sec) sec.style.display = 'none';
+                        statusEl.innerHTML = '';
+                        detailEl.textContent = '';
+                    }
                     return;
                 }
+                // Ensure driver section is visible if we found a driver catalog
+                if (!wantSbom) { const sec = document.getElementById('cat-signature'); if (sec) sec.style.display = ''; }
                 const catBytes = await zip.file(catPath).async('arraybuffer');
                 // Load ESM modules dynamically
                 const { asn1js, pkijs } = await loadPkijsModules();
@@ -1130,11 +1196,12 @@
             }
         }
 
-        function promptForPassword(message) {
+        function promptForPassword(message, fileName) {
             return new Promise((resolve, reject) => {
                 const modal = document.getElementById('pwd-modal');
                 const msg = document.getElementById('pwd-message');
-                const input = document.getElementById('pwd-input');
+                const fileEl = document.getElementById('pwd-file');
+                let input = document.getElementById('pwd-input');
                 const btnOk = document.getElementById('pwd-ok');
                 const btnCancel = document.getElementById('pwd-cancel');
                 const btnToggle = document.getElementById('pwd-toggle');
@@ -1151,12 +1218,34 @@
                     cleanup(); resolve(val);
                 }
                 function onCancel() { cleanup(); reject(new Error('Password prompt cancelled')); }
-                function onToggle() { input.type = input.type === 'password' ? 'text' : 'password'; btnToggle.textContent = input.type === 'password' ? 'Show Password' : 'Hide Password'; input.focus(); }
+                function onToggle() {
+                    try {
+                        input.type = input.type === 'password' ? 'text' : 'password';
+                        btnToggle.textContent = input.type === 'password' ? 'Show Password' : 'Hide Password';
+                        input.focus();
+                    } catch (_) {
+                        // Fallback: replace input to force type change in stubborn browsers
+                        const wasPassword = input.type === 'password';
+                        const clone = input.cloneNode(true);
+                        clone.type = wasPassword ? 'text' : 'password';
+                        clone.id = 'pwd-input';
+                        input.parentNode.replaceChild(clone, input);
+                        input = document.getElementById('pwd-input');
+                        btnToggle.textContent = wasPassword ? 'Hide Password' : 'Show Password';
+                        setTimeout(() => input.focus(), 0);
+                    }
+                }
                 function onKey(e) {
                     if (e.key === 'Enter') { e.preventDefault(); onOk(); }
                     else if (e.key === 'Escape') { e.preventDefault(); onCancel(); }
                 }
                 msg.textContent = message || 'Enter password';
+                // Show just the file name, not a full path
+                if (fileEl) {
+                    const nameOnly = (fileName || '').toString().split(/[/\\]/).pop();
+                    fileEl.textContent = nameOnly ? `File: ${nameOnly}` : '';
+                    fileEl.style.display = nameOnly ? '' : 'none';
+                }
                 input.value = '';
                 input.type = 'password';
                 btnToggle.textContent = 'Show Password';
