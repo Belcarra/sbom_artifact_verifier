@@ -29,8 +29,8 @@ Each SBOM includes `creationInfo`, a root package, `filesAnalyzed`, `hasFiles`, 
 ## Rationale for the Dependency Relationship Display
 The UI displays two dependency rows when a nested kit is opened from the parent:
 - **Dependency Relationship (from Parent)** is contextual and derived from the parent kit:  
-  `belcarrademo 02-05-01-001 CONTAINS BelcarraDemoUSBLAN 02-05-01-001`  
+  `belcarrademo 02-05-01-001` **CONTAINS** `BelcarraDemoUSBLAN 02-05-01-001`  
   This aligns with SPDX semantics (`CONTAINS` is appropriate for package-to-package containment) and with CISA’s framing of dependency relationships as inclusion.
-- **Dependency Relationship** (within the nested SBOM) shows the nested SBOM’s own relationship, derived from its manifest (document describes the package). This ensures the SBOM remains valid and meaningful when opened standalone.
+- **Dependency Relationship** (within the nested SBOM) shows the nested SBOM’s own relationship, derived from its manifest (document **DESCRIBES** the package). This ensures the SBOM remains valid and meaningful when opened standalone.
 
 This approach preserves the formal SPDX meaning of `DESCRIBES` (document-to-element) while also exposing the practical containment relationship needed for a dependency graph across the nested ZIP structure.

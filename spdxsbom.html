@@ -136,7 +136,7 @@
         </p>
         <p><strong>What it does not do:</strong> It does not consult the Windows trust store or perform revocation checks. For official Windows trust, use <code>signtool verify /kp /v</code> on the catalog.</p>
         <p style="font-size:15px; font-weight:600;">All processing happens locally in your browser. No files or passwords are sent anywhere.</p>
-        <p style="margin-top:8px;">Project: <a href="https://github.com/Belcarra/sbom_artifact_verifier" target="_blank" rel="noopener">git@github.com:Belcarra/sbom_artifact_verifier.git</a></p>
+        <p style="margin-top:8px;">Project: <a href="https://github.com/Belcarra/sbom_artifact_verifier" target="_blank" rel="noopener">git@github.com:Belcarra/sbom_artifact_verifier.git</a> &nbsp;|&nbsp; Version: 0.01 beta</p>
     </div>
     <input type="file" id="file-input" style="display: none;" accept=".zip">
 
@@ -1077,12 +1077,15 @@
             addRow('Component Version', rows.componentVersion || '');
             // Optional parent relationship when opened from a parent kit
             if (ctx?.parentContext?.parentDisplayName && rows.dependencyTo) {
-                const parentDep = `${ctx.parentContext.parentDisplayName} CONTAINS ${rows.dependencyTo}`;
-                addRow('Dependency Relationship (from Parent)', parentDep);
+                const parentDep = `${ctx.parentContext.parentDisplayName} <strong>CONTAINS</strong> ${rows.dependencyTo}`;
+                minElementsBody.innerHTML += `<tr><td>${esc('Dependency Relationship (from Parent)')}</td><td>${parentDep}</td></tr>`;
             }
             // Dependency with optional second line for contained zip filename + clickable link
             if (rows.dependency || rows.dependencyZipPath) {
-                const depHtml = `<div>${esc(rows.dependency || '')}</div>` + (rows.dependencyZipName ? `<div><a href="#" id="dep-zip-link">${esc(rows.dependencyZipName)}</a></div>` : '');
+                const depLine = (rows.dependencyFrom && rows.dependencyType && rows.dependencyTo)
+                    ? `${esc(rows.dependencyFrom)} <strong>${esc(rows.dependencyType)}</strong> ${esc(rows.dependencyTo)}`
+                    : esc(rows.dependency || '');
+                const depHtml = `<div>${depLine}</div>` + (rows.dependencyZipName ? `<div><a href="#" id="dep-zip-link">${esc(rows.dependencyZipName)}</a></div>` : '');
                 minElementsBody.innerHTML += `<tr><td>Dependency Relationship</td><td>${depHtml}</td></tr>`;
                 // Attach click if we can find the entry inside the zip
                 if (rows.dependencyZipPath) {
