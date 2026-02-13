@@ -672,7 +672,7 @@
                 await verifyCatalogSignature(zip, sbomCatStatusEl, sbomCatDetailEl, { scope: 'sbom' });
 
                 // 7. Render CISA Minimum Elements summary table
-                try { renderMinimumElements(manifest, zip); } catch (e) { console.warn('[SBOM Validator] Minimum Elements rendering error:', e); }
+                try { renderMinimumElements(manifest, zip, ctx); } catch (e) { console.warn('[SBOM Validator] Minimum Elements rendering error:', e); }
                 const dzRect = dropZone.getBoundingClientRect();
                 const rcRect = resultsContainer.getBoundingClientRect();
                 console.log('[SBOM Validator] sizes:', 'innerWH=', window.innerWidth, window.innerHeight, 'docWH=', document.documentElement.clientWidth, document.documentElement.clientHeight, 'dropZone=', Math.round(dzRect.width)+'x'+Math.round(dzRect.height), 'results=', Math.round(rcRect.width)+'x'+Math.round(rcRect.height));
@@ -1055,7 +1055,7 @@
             }
         }
 
-        function renderMinimumElements(manifest, zip) {
+        function renderMinimumElements(manifest, zip, ctx = {}) {
             if (!manifest || typeof manifest !== 'object') return;
             const rows = extractMinimumElements(manifest);
             // Clear table body and populate
@@ -1068,6 +1068,11 @@
             addRow('SBOM Author', rows.author || '');
             addRow('Component Name', rows.componentName || '');
             addRow('Component Version', rows.componentVersion || '');
+            // Optional parent relationship when opened from a parent kit
+            if (ctx?.parentContext?.parentDisplayName && rows.dependencyTo) {
+                const parentDep = `${ctx.parentContext.parentDisplayName} CONTAINS ${rows.dependencyTo}`;
+                addRow('Dependency Relationship (from Parent)', parentDep);
+            }
             // Dependency with optional second line for contained zip filename + clickable link
             if (rows.dependency || rows.dependencyZipPath) {
                 const depHtml = `<div>${esc(rows.dependency || '')}</div>` + (rows.dependencyZipName ? `<div><a href="#" id="dep-zip-link">${esc(rows.dependencyZipName)}</a></div>` : '');
@@ -1090,7 +1095,8 @@
                                     const buf = await zip.file(match).async('arraybuffer');
                                     const nested = new File([buf], rows.dependencyZipName || 'nested.zip', { type: 'application/zip' });
                                     // Push nested onto stack
-                                    await handleFile(nested, { pushNested: true });
+                                    const parentDisplayName = `${rows.componentName || ''} ${rows.componentVersion || ''}`.trim();
+                                    await handleFile(nested, { pushNested: true, parentContext: { parentDisplayName } });
                                 } catch (err) { console.error('[SBOM Validator] Nested ZIP open failed:', err); }
                             });
                         }
@@ -1106,7 +1112,7 @@
         }
 
         function extractMinimumElements(manifest) {
-            const out = { author: '', componentName: '', componentVersion: '', dependency: '', toolName: '', timestamp: '', dependencyZipPath: '', dependencyZipName: '' };
+            const out = { author: '', componentName: '', componentVersion: '', dependency: '', dependencyFrom: '', dependencyType: '', dependencyTo: '', toolName: '', timestamp: '', dependencyZipPath: '', dependencyZipName: '' };
             try {
                 // Timestamp and creators
                 const ci = manifest.creationInfo || {};
@@ -1160,6 +1166,9 @@
                         const from = idToName.get(rel.spdxElementId) || rel.spdxElementId || '';
                         const to = idToName.get(rel.relatedSpdxElement) || rel.relatedSpdxElement || '';
                         depText = `${from} ${rel.relationshipType} ${to}`;
+                        out.dependencyFrom = from;
+                        out.dependencyType = rel.relationshipType || '';
+                        out.dependencyTo = to;
                         // If related is a file, try to find its fileName to expose a clickable link
                         const relFile = (Array.isArray(files) ? files : []).find(f => f.SPDXID === rel.relatedSpdxElement);
                         if (relFile && relFile.fileName) {
