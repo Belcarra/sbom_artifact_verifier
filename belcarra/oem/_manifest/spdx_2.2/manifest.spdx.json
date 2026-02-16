@@ -1,0 +1,202 @@
+{
+  "files": [
+    {
+      "fileName": "./belcarrademo.cfg",
+      "SPDXID": "SPDXRef-File--belcarrademo.cfg-B26E2C0367E5655630BD1297F0072422115E6A9B",
+      "checksums": [
+        {
+          "algorithm": "SHA256",
+          "checksumValue": "495f4cbe7261a3a9f951059b9caece118016047612b2345de08eeac7012dbeac"
+        },
+        {
+          "algorithm": "SHA1",
+          "checksumValue": "b26e2c0367e5655630bd1297f0072422115e6a9b"
+        }
+      ],
+      "licenseConcluded": "NOASSERTION",
+      "licenseInfoInFiles": [
+        "NOASSERTION"
+      ],
+      "copyrightText": "NOASSERTION"
+    },
+    {
+      "fileName": "./License.txt",
+      "SPDXID": "SPDXRef-File--License.txt-F5FB5D02A0011E9300A69D2787EC8551974F2B82",
+      "checksums": [
+        {
+          "algorithm": "SHA256",
+          "checksumValue": "426bf51129bc84903223150bccab1df37e8aab3ca9f6679f8f58f5d278500aa2"
+        },
+        {
+          "algorithm": "SHA1",
+          "checksumValue": "f5fb5d02a0011e9300a69d2787ec8551974f2b82"
+        }
+      ],
+      "licenseConcluded": "NOASSERTION",
+      "licenseInfoInFiles": [
+        "NOASSERTION"
+      ],
+      "copyrightText": "NOASSERTION"
+    },
+    {
+      "fileName": "./belcarrademo-02-05-01-001-Production-amd64_arm64-drivers.zip",
+      "SPDXID": "SPDXRef-File--belcarrademo-02-05-01-001-Production-amd64-arm64-drivers.zip-C8D9738993BCE5B8CF7DC0C6EAD0F35A3E755155",
+      "checksums": [
+        {
+          "algorithm": "SHA256",
+          "checksumValue": "7aa3341ffed54509ef188ae15349b3950b06666fbbf9a09dcf6167d6431a9182"
+        },
+        {
+          "algorithm": "SHA1",
+          "checksumValue": "c8d9738993bce5b8cf7dc0c6ead0f35a3e755155"
+        }
+      ],
+      "licenseConcluded": "NOASSERTION",
+      "licenseInfoInFiles": [
+        "NOASSERTION"
+      ],
+      "copyrightText": "NOASSERTION"
+    },
+    {
+      "fileName": "./belcarrademo.xlsx",
+      "SPDXID": "SPDXRef-File--belcarrademo.xlsx-DA6C81D1A7F98B69E64023EF3AEF5C5C80632B58",
+      "checksums": [
+        {
+          "algorithm": "SHA256",
+          "checksumValue": "e11e6d13be1bb86f4dcd1afdb799501324908e6e79c10ba2c764c0fecc0a1567"
+        },
+        {
+          "algorithm": "SHA1",
+          "checksumValue": "da6c81d1a7f98b69e64023ef3aef5c5c80632b58"
+        }
+      ],
+      "licenseConcluded": "NOASSERTION",
+      "licenseInfoInFiles": [
+        "NOASSERTION"
+      ],
+      "copyrightText": "NOASSERTION"
+    },
+    {
+      "fileName": "./README-belcarrademo-02-05-01-001-Production-amd64_arm64-drivers.txt",
+      "SPDXID": "SPDXRef-File--README-belcarrademo-02-05-01-001-Production-amd64-arm64-drivers.txt-800BE09BD5C3760405068674473E1DB495C59B7A",
+      "checksums": [
+        {
+          "algorithm": "SHA256",
+          "checksumValue": "a0e36fd08fc96fd044711980561d5251bc6e7d40af6bff7004c1440f15b578ad"
+        },
+        {
+          "algorithm": "SHA1",
+          "checksumValue": "800be09bd5c3760405068674473e1db495c59b7a"
+        }
+      ],
+      "licenseConcluded": "NOASSERTION",
+      "licenseInfoInFiles": [
+        "NOASSERTION"
+      ],
+      "copyrightText": "NOASSERTION"
+    },
+    {
+      "fileName": "./verify-release.bat",
+      "SPDXID": "SPDXRef-File--verify-release.bat-2B61F4DD6DE176FDF09762B2C6EAB6E2770A6F4F",
+      "checksums": [
+        {
+          "algorithm": "SHA256",
+          "checksumValue": "680b6613805c950e542be6c572612cdddb767db981d6cc2f8cb591e84a26698f"
+        },
+        {
+          "algorithm": "SHA1",
+          "checksumValue": "2b61f4dd6de176fdf09762b2c6eab6e2770a6f4f"
+        }
+      ],
+      "licenseConcluded": "NOASSERTION",
+      "licenseInfoInFiles": [
+        "NOASSERTION"
+      ],
+      "copyrightText": "NOASSERTION"
+    }
+  ],
+  "packages": [
+    {
+      "name": "belcarrademo",
+      "SPDXID": "SPDXRef-RootPackage",
+      "downloadLocation": "NOASSERTION",
+      "packageVerificationCode": {
+        "packageVerificationCodeValue": "b28ffe0b9c1b894f0b081a2085408befb43a03ba"
+      },
+      "filesAnalyzed": true,
+      "licenseConcluded": "LicenseRef-Belcarra-Proprietary",
+      "licenseInfoFromFiles": [
+        "NOASSERTION"
+      ],
+      "licenseDeclared": "LicenseRef-Belcarra-Proprietary",
+      "copyrightText": "NOASSERTION",
+      "versionInfo": "02-05-01-001",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceType": "purl",
+          "referenceLocator": "pkg:swid/Belcarra%20Technologies%20%282005%29%20Corp./spdx.org/belcarrademo@02-05-01-001?tag_id=85df816d-28d7-4622-8a4b-a4e16c7afc4e"
+        }
+      ],
+      "supplier": "Organization: Belcarra Technologies (2005) Corp.",
+      "hasFiles": [
+        "SPDXRef-File--License.txt-F5FB5D02A0011E9300A69D2787EC8551974F2B82",
+        "SPDXRef-File--verify-release.bat-2B61F4DD6DE176FDF09762B2C6EAB6E2770A6F4F",
+        "SPDXRef-File--belcarrademo-02-05-01-001-Production-amd64-arm64-drivers.zip-C8D9738993BCE5B8CF7DC0C6EAD0F35A3E755155",
+        "SPDXRef-File--README-belcarrademo-02-05-01-001-Production-amd64-arm64-drivers.txt-800BE09BD5C3760405068674473E1DB495C59B7A",
+        "SPDXRef-File--belcarrademo.xlsx-DA6C81D1A7F98B69E64023EF3AEF5C5C80632B58",
+        "SPDXRef-File--belcarrademo.cfg-B26E2C0367E5655630BD1297F0072422115E6A9B"
+      ]
+    }
+  ],
+  "externalDocumentRefs": [
+    {
+      "externalDocumentId": "DocumentRef-External",
+      "spdxDocument": "https://spdx.org/spdxdocs/sbom-tool-4.1.5-09f2a483-495d-4c11-a753-421e83ce60d8/BelcarraDemoUSBLAN/02-05-01-001/jHrPTpLCC0mACgL_J8F1cw",
+      "checksum": {
+        "algorithm": "SHA1",
+        "checksumValue": "bd4c855fef4ac71c4706c702027ddab3e6cd0403"
+      }
+    }
+  ],
+  "relationships": [
+    {
+      "relationshipType": "DESCRIBES",
+      "relatedSpdxElement": "SPDXRef-RootPackage",
+      "spdxElementId": "SPDXRef-DOCUMENT"
+    },
+    {
+      "spdxElementId": "SPDXRef-RootPackage",
+      "relationshipType": "CONTAINS",
+      "relatedSpdxElement": "SPDXRef-File--belcarrademo-02-05-01-001-Production-amd64-arm64-drivers.zip-C8D9738993BCE5B8CF7DC0C6EAD0F35A3E755155"
+    },
+    {
+      "spdxElementId": "SPDXRef-RootPackage",
+      "relationshipType": "CONTAINS",
+      "relatedSpdxElement": "DocumentRef-External:SPDXRef-RootPackage"
+    }
+  ],
+  "spdxVersion": "SPDX-2.2",
+  "dataLicense": "CC0-1.0",
+  "SPDXID": "SPDXRef-DOCUMENT",
+  "name": "belcarrademo 02-05-01-001",
+  "documentNamespace": "https://spdx.org/spdxdocs/sbom-tool-4.1.5-922b67b2-ad62-4d2a-a9b2-f456a4333aff/belcarrademo/02-05-01-001/LbFg8Xprx0-XxIe2ieQV2A",
+  "creationInfo": {
+    "created": "2026-02-13T08:30:43Z",
+    "creators": [
+      "Organization: Belcarra Technologies (2005) Corp.",
+      "Tool: Microsoft.SBOMTool-4.1.5"
+    ]
+  },
+  "documentDescribes": [
+    "SPDXRef-RootPackage"
+  ],
+  "comment": "CISA-Generation-Context: after build\nExternalSBOM-Location DocumentRef-External: ./belcarrademo-02-05-01-001-Production-amd64_arm64-drivers.zip!/_manifest/spdx_2.2/manifest.spdx.json; sha256=1c844f128dcf5b00d2fe3f68bea0af77ba60041106c8d8f9de9bd80f942b34a5",
+  "hasExtractedLicensingInfos": [
+    {
+      "licenseId": "LicenseRef-Belcarra-Proprietary",
+      "extractedText": "END USER lICENSE AGREEMENT\nBelcarra Technologies (2005) Corp \n\n\nEND USER LICENSE AGREEMENT FOR BELCARRA USBLAN SOFTWARE \n\nRead this License Agreement carefully. By pressing the\n\"AGREE\" button below, you accept all the terms and\nconditions of this agreement.\n\nThis Belcarra End-User License Agreement \"EULA\" is a\nlegal agreement between you (either an individual\nend-user or an entity) and Belcarra Technologies Corp or\nits assigns, (known from here on as \"Belcarra\") for the\nBelcarra software product/s identified above, which\nincludes computer software, and or license number and\nmay include modified versions, updates, additions and\ncopies, associated media, printed materials, and\n\"online\" or electronic documentation (known from here on\nas \"SOFTWARE\").  By installing, or otherwise using the\nSOFTWARE, you agree to be bound by the terms of this\nEULA. If you do not agree to the terms of this EULA, do\nnot install, or otherwise  use the SOFTWARE.   \n\nSOFTWARE LICENSE \n\nSubject to the terms and conditions of this Agreement,\nBelcarra grants to you a nonexclusive license to use the\nsoftware program  only with the product you have\npurchased and for which it has been licensed. No other\nrights are granted.  You must include on any backup copy\nall copyright and other notices included in the\nSoftware.\n\nOWNERSHIP\n\nThe Software is licensed, not sold, to you for use only\nunder the terms and conditions of this Agreement, and\nBelcarra reserves all rights not expressly granted to\nyou in this Agreement. Belcarra and/or its Licensees\nretain title to the Software, and all intellectual\nproperty rights therein. U.S. Copyright laws and\ninternational copyright treaties protect the SOFTWARE.\n\nRESTRICTIONS \n\nThe Software contains copyrighted material, trade\nsecrets, and other proprietary materials of Belcarra and\nits Licensees. You agree that in order to protect those\nproprietary materials, except as expressly permitted by\napplicable law, neither you nor a third party acting on\nyour behalf will: \n\n - reverse engineer, disassemble, decompile or make any\n   attempt to discover the source code of the Software;\n - modify or adapt the Software or merge it into another\n   program \n - use the Software in any manner to provide service\n   bureau, commercial time-sharing or other computer\n   services to third parties;\n - copy the documentation\n - sell, distribute, rent, lease, sublicense or\n   otherwise transfer the Software to a third party,\n   except upon a permanent transfer of the Product using\n   the Software; provided that: \n\n   (a) all Software updates are included in the transfer, \n   (b) you do not retain a copy of the Software, and \n   (c) the transferee agrees to be bound by the terms\n   and conditions in this Agreement.\n\nThe software may contain technology that enables\napplications to be shared among two or more computers,\neven if an application is installed on only one of the\ncomputers.  You should consult an application's\naccompanying license agreement or contact the licensor\nto determine whether application sharing is permitted by\nthe licensor.\n \nUPGRADES\n\nPeriodically Belcarra will provide upgrades to this\nSOFTWARE. Any supplemental software code provided to you\nshall be considered part of the SOFTWARE and subject to\nthe terms and conditions of this EULA.\n\nNO WARRANTEES\n\nBelcarra expressly disclaims any warranty for the\nSOFTWARE. The SOFTWARE is provided \"as is\". No warranty\nor condition of any kind, expressed or implied is made\nby Belcarra. The risks associated with the usage and\nperformance of the SOFTWARE is the responsibility of the\nend user (you). \n\nLIMITATION OF LIABILITY\n\nIn no event shall Belcarra be liable for any damages\nwhatsoever (including, without limitation, damages for\nloss of data, performance interruption, or any other\nloss) arising out of the use of or inability to use the\nSOFTWARE. Because some states and jurisdictions do not\nallow the exclusion or limitation of liability for\nconsequential or incidental damages, the above\nlimitation may not apply to you. \n\nGOVERNING LAW JURISDICTION\n\nThis Agreement shall be governed by the laws of the\nProvince of British Columbia. You agree not to commence\nany action or proceeding except in Vancouver, Canada.  \n\nThis Agreement will not be governed by the United\nNations Convention on Contracts for the International\nSale of Goods, the application of which is expressly\nexcluded. \n\nSEVERABILITY\n\nIf any part of this Agreement is found void and\nunenforceable, it will not affect the validity of the\nbalance of the Agreement, which shall remain valid and\nenforceable according to its terms. \n\nTERMINATION\n\nThis Agreement shall automatically terminate upon\nfailure by you to comply with its terms, in which event\nyou must destroy all copies of the Software. \n",
+      "name": "Belcarra Proprietary OEM License"
+    }
+  ]
+}

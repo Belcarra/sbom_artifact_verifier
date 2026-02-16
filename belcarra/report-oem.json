@@ -1,0 +1,131 @@
+{
+   "Result" : "Success",
+   "Summary" : {
+      "Parameters" : {
+         "AdditionalComponentDetectorArgs" : null,
+         "ArtifactInfoMap" : null,
+         "BuildComponentPath" : null,
+         "BuildDropPath" : {
+            "IsDefaultSource" : false,
+            "Source" : "CommandLine",
+            "Value" : "."
+         },
+         "BuildListFile" : null,
+         "CatalogFilePath" : null,
+         "ConfigFilePath" : null,
+         "Conformance" : {
+            "IsDefaultSource" : true,
+            "Source" : "Default",
+            "Value" : {
+               "Name" : "None"
+            }
+         },
+         "DeleteManifestDirIfPresent" : {
+            "IsDefaultSource" : true,
+            "Source" : "Default",
+            "Value" : false
+         },
+         "DockerImagesToScan" : null,
+         "EnablePackageMetadataParsing" : {
+            "IsDefaultSource" : true,
+            "Source" : "Default",
+            "Value" : false
+         },
+         "ExternalDocumentReferenceListFile" : null,
+         "FailIfNoPackages" : {
+            "IsDefaultSource" : false,
+            "Source" : "CommandLine",
+            "Value" : false
+         },
+         "FetchLicenseInformation" : {
+            "IsDefaultSource" : true,
+            "Source" : "Default",
+            "Value" : false
+         },
+         "FilesList" : null,
+         "FollowSymlinks" : {
+            "IsDefaultSource" : true,
+            "Source" : "Default",
+            "Value" : true
+         },
+         "GenerationTimestamp" : null,
+         "HashAlgorithm" : {
+            "IsDefaultSource" : true,
+            "Source" : "Default",
+            "Value" : {
+               "Name" : "SHA256"
+            }
+         },
+         "IgnoreMissing" : {
+            "IsDefaultSource" : false,
+            "Source" : "CommandLine",
+            "Value" : false
+         },
+         "LicenseInformationTimeoutInSeconds" : {
+            "IsDefaultSource" : true,
+            "Source" : "Default",
+            "Value" : 30
+         },
+         "ManifestDirPath" : {
+            "IsDefaultSource" : false,
+            "Source" : "CommandLine",
+            "Value" : "_manifest"
+         },
+         "ManifestInfo" : {
+            "IsDefaultSource" : false,
+            "Source" : "CommandLine",
+            "Value" : [
+               {
+                  "Name" : "SPDX",
+                  "Version" : "2.2"
+               }
+            ]
+         },
+         "ManifestPath" : null,
+         "ManifestToolAction" : "Validate",
+         "NamespaceUriBase" : null,
+         "NamespaceUriUniquePart" : null,
+         "OutputPath" : {
+            "IsDefaultSource" : false,
+            "Source" : "CommandLine",
+            "Value" : "../report.json"
+         },
+         "PackageName" : null,
+         "PackageSupplier" : null,
+         "PackageVersion" : null,
+         "PackagesList" : null,
+         "Parallelism" : {
+            "IsDefaultSource" : true,
+            "Source" : "Default",
+            "Value" : 8
+         },
+         "RootPathFilter" : null,
+         "SbomDir" : null,
+         "SbomPath" : null,
+         "TelemetryFilePath" : null,
+         "ValidateSignature" : {
+            "IsDefaultSource" : false,
+            "Source" : "CommandLine",
+            "Value" : false
+         },
+         "Verbosity" : {
+            "IsDefaultSource" : false,
+            "Source" : "CommandLine",
+            "Value" : "Warning"
+         }
+      },
+      "TotalExecutionTimeInSeconds" : 0.0837488,
+      "ValidationTelemetery" : {
+         "FilesFailedCount" : 0,
+         "FilesSkippedCount" : 3,
+         "FilesSuccessfulCount" : 6,
+         "FilesValidatedCount" : 6,
+         "TotalFilesInManifest" : 6,
+         "TotalPackagesInManifest" : 1
+      }
+   },
+   "ValidationErrors" : {
+      "Count" : 0,
+      "Errors" : []
+   }
+}

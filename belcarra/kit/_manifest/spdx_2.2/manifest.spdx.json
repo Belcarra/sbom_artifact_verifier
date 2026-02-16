@@ -1,0 +1,255 @@
+{
+  "files": [
+    {
+      "fileName": "./verify-release.bat",
+      "SPDXID": "SPDXRef-File--verify-release.bat-2B61F4DD6DE176FDF09762B2C6EAB6E2770A6F4F",
+      "checksums": [
+        {
+          "algorithm": "SHA256",
+          "checksumValue": "680b6613805c950e542be6c572612cdddb767db981d6cc2f8cb591e84a26698f"
+        },
+        {
+          "algorithm": "SHA1",
+          "checksumValue": "2b61f4dd6de176fdf09762b2c6eab6e2770a6f4f"
+        }
+      ],
+      "licenseConcluded": "NOASSERTION",
+      "licenseInfoInFiles": [
+        "NOASSERTION"
+      ],
+      "copyrightText": "NOASSERTION"
+    },
+    {
+      "fileName": "./drivers/amd64/btdblan.sys",
+      "SPDXID": "SPDXRef-File--drivers-amd64-btdblan.sys-BE2931144C9F55E6188E0F5E15B711389624A757",
+      "checksums": [
+        {
+          "algorithm": "SHA256",
+          "checksumValue": "7335548175d1af5bdd1fe4bca0c71b3a04b694506f324e613c9fb98411ba2f0b"
+        },
+        {
+          "algorithm": "SHA1",
+          "checksumValue": "be2931144c9f55e6188e0f5e15b711389624a757"
+        }
+      ],
+      "licenseConcluded": "NOASSERTION",
+      "licenseInfoInFiles": [
+        "NOASSERTION"
+      ],
+      "copyrightText": "NOASSERTION"
+    },
+    {
+      "fileName": "./License.txt",
+      "SPDXID": "SPDXRef-File--License.txt-F5FB5D02A0011E9300A69D2787EC8551974F2B82",
+      "checksums": [
+        {
+          "algorithm": "SHA256",
+          "checksumValue": "426bf51129bc84903223150bccab1df37e8aab3ca9f6679f8f58f5d278500aa2"
+        },
+        {
+          "algorithm": "SHA1",
+          "checksumValue": "f5fb5d02a0011e9300a69d2787ec8551974f2b82"
+        }
+      ],
+      "licenseConcluded": "NOASSERTION",
+      "licenseInfoInFiles": [
+        "NOASSERTION"
+      ],
+      "copyrightText": "NOASSERTION"
+    },
+    {
+      "fileName": "./drivers/arm64/btdblan.pdb",
+      "SPDXID": "SPDXRef-File--drivers-arm64-btdblan.pdb-FBBED83974E848B96C475010DD5E4544DE037D69",
+      "checksums": [
+        {
+          "algorithm": "SHA256",
+          "checksumValue": "bb2e733c247c1aea844a7e05c6ad01b2752bc901c2c59987d27f28b00d87d5ec"
+        },
+        {
+          "algorithm": "SHA1",
+          "checksumValue": "fbbed83974e848b96c475010dd5e4544de037d69"
+        }
+      ],
+      "licenseConcluded": "NOASSERTION",
+      "licenseInfoInFiles": [
+        "NOASSERTION"
+      ],
+      "copyrightText": "NOASSERTION"
+    },
+    {
+      "fileName": "./README-INSTALL.txt",
+      "SPDXID": "SPDXRef-File--README-INSTALL.txt-018AF617DBC1FFE74446A95F5875A532F5484A55",
+      "checksums": [
+        {
+          "algorithm": "SHA256",
+          "checksumValue": "66f062388d237849b5e990244439edc3c9b52c13b8d0b66e91aa5d5b0aaea1c1"
+        },
+        {
+          "algorithm": "SHA1",
+          "checksumValue": "018af617dbc1ffe74446a95f5875a532f5484a55"
+        }
+      ],
+      "licenseConcluded": "NOASSERTION",
+      "licenseInfoInFiles": [
+        "NOASSERTION"
+      ],
+      "copyrightText": "NOASSERTION"
+    },
+    {
+      "fileName": "./drivers/arm64/btdblan.sys",
+      "SPDXID": "SPDXRef-File--drivers-arm64-btdblan.sys-3E574D0BD98D5AEE18C6ECCB74EBD47D7D7C7E0B",
+      "checksums": [
+        {
+          "algorithm": "SHA256",
+          "checksumValue": "95ee2a34ad7e9f019e39a3158410b1789807f652bc20aea1c4a1e87009948ea5"
+        },
+        {
+          "algorithm": "SHA1",
+          "checksumValue": "3e574d0bd98d5aee18c6eccb74ebd47d7d7c7e0b"
+        }
+      ],
+      "licenseConcluded": "NOASSERTION",
+      "licenseInfoInFiles": [
+        "NOASSERTION"
+      ],
+      "copyrightText": "NOASSERTION"
+    },
+    {
+      "fileName": "./drivers/belcarrademo.inf",
+      "SPDXID": "SPDXRef-File--drivers-belcarrademo.inf-DA214084E4DC9BE9D192A702CEB50B09E3A82761",
+      "checksums": [
+        {
+          "algorithm": "SHA256",
+          "checksumValue": "dfdbec29494f6106df46f63522ba0cb952c0f22ac409d90463bcfab5434f2350"
+        },
+        {
+          "algorithm": "SHA1",
+          "checksumValue": "da214084e4dc9be9d192a702ceb50b09e3a82761"
+        }
+      ],
+      "licenseConcluded": "NOASSERTION",
+      "licenseInfoInFiles": [
+        "NOASSERTION"
+      ],
+      "copyrightText": "NOASSERTION"
+    },
+    {
+      "fileName": "./drivers/amd64/btdblan.pdb",
+      "SPDXID": "SPDXRef-File--drivers-amd64-btdblan.pdb-8670727DE62B3F7443544743AAF0692107412468",
+      "checksums": [
+        {
+          "algorithm": "SHA256",
+          "checksumValue": "e11838eb89f88f0a300e864971555ed528609ff057408ca62173fbeb1990f187"
+        },
+        {
+          "algorithm": "SHA1",
+          "checksumValue": "8670727de62b3f7443544743aaf0692107412468"
+        }
+      ],
+      "licenseConcluded": "NOASSERTION",
+      "licenseInfoInFiles": [
+        "NOASSERTION"
+      ],
+      "copyrightText": "NOASSERTION"
+    },
+    {
+      "fileName": "./setup.bat",
+      "SPDXID": "SPDXRef-File--setup.bat-5E837B24187835123FB2873BECFCAE347D669211",
+      "checksums": [
+        {
+          "algorithm": "SHA256",
+          "checksumValue": "01ff84ec66d7ab8a54125a2abe8b8506377589907df7dc67f0983a91d1d75e0f"
+        },
+        {
+          "algorithm": "SHA1",
+          "checksumValue": "5e837b24187835123fb2873becfcae347d669211"
+        }
+      ],
+      "licenseConcluded": "NOASSERTION",
+      "licenseInfoInFiles": [
+        "NOASSERTION"
+      ],
+      "copyrightText": "NOASSERTION"
+    },
+    {
+      "fileName": "./drivers/belcarrademo.cat",
+      "SPDXID": "SPDXRef-File--drivers-belcarrademo.cat-951B9C213D110BF4BA6C0E4061BCC479B7AE685B",
+      "checksums": [
+        {
+          "algorithm": "SHA256",
+          "checksumValue": "2f5c931cdef8183f8ee965fccca7307a4bfdd82aad1f7c042766aee6d56d2169"
+        },
+        {
+          "algorithm": "SHA1",
+          "checksumValue": "951b9c213d110bf4ba6c0e4061bcc479b7ae685b"
+        }
+      ],
+      "licenseConcluded": "NOASSERTION",
+      "licenseInfoInFiles": [
+        "NOASSERTION"
+      ],
+      "copyrightText": "NOASSERTION"
+    }
+  ],
+  "packages": [
+    {
+      "name": "BelcarraDemoUSBLAN",
+      "SPDXID": "SPDXRef-RootPackage",
+      "downloadLocation": "NOASSERTION",
+      "packageVerificationCode": {
+        "packageVerificationCodeValue": "554d54f748b887f3f8c82f8dad20a15b95d41602"
+      },
+      "filesAnalyzed": true,
+      "licenseConcluded": "NOASSERTION",
+      "licenseInfoFromFiles": [
+        "NOASSERTION"
+      ],
+      "licenseDeclared": "NOASSERTION",
+      "copyrightText": "NOASSERTION",
+      "versionInfo": "02-05-01-001",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceType": "purl",
+          "referenceLocator": "pkg:swid/Belcarra%20Technologies%20%282005%29%20Corp./spdx.org/BelcarraDemoUSBLAN@02-05-01-001?tag_id=8c2a37a7-af46-4ca4-9eb1-5eafdd02eebf"
+        }
+      ],
+      "supplier": "Organization: Belcarra Technologies (2005) Corp.",
+      "hasFiles": [
+        "SPDXRef-File--drivers-belcarrademo.inf-DA214084E4DC9BE9D192A702CEB50B09E3A82761",
+        "SPDXRef-File--drivers-amd64-btdblan.pdb-8670727DE62B3F7443544743AAF0692107412468",
+        "SPDXRef-File--setup.bat-5E837B24187835123FB2873BECFCAE347D669211",
+        "SPDXRef-File--drivers-arm64-btdblan.pdb-FBBED83974E848B96C475010DD5E4544DE037D69",
+        "SPDXRef-File--License.txt-F5FB5D02A0011E9300A69D2787EC8551974F2B82",
+        "SPDXRef-File--drivers-belcarrademo.cat-951B9C213D110BF4BA6C0E4061BCC479B7AE685B",
+        "SPDXRef-File--verify-release.bat-2B61F4DD6DE176FDF09762B2C6EAB6E2770A6F4F",
+        "SPDXRef-File--drivers-amd64-btdblan.sys-BE2931144C9F55E6188E0F5E15B711389624A757",
+        "SPDXRef-File--drivers-arm64-btdblan.sys-3E574D0BD98D5AEE18C6ECCB74EBD47D7D7C7E0B",
+        "SPDXRef-File--README-INSTALL.txt-018AF617DBC1FFE74446A95F5875A532F5484A55"
+      ]
+    }
+  ],
+  "externalDocumentRefs": [],
+  "relationships": [
+    {
+      "relationshipType": "DESCRIBES",
+      "relatedSpdxElement": "SPDXRef-RootPackage",
+      "spdxElementId": "SPDXRef-DOCUMENT"
+    }
+  ],
+  "spdxVersion": "SPDX-2.2",
+  "dataLicense": "CC0-1.0",
+  "SPDXID": "SPDXRef-DOCUMENT",
+  "name": "BelcarraDemoUSBLAN 02-05-01-001",
+  "documentNamespace": "https://spdx.org/spdxdocs/sbom-tool-4.1.5-09f2a483-495d-4c11-a753-421e83ce60d8/BelcarraDemoUSBLAN/02-05-01-001/jHrPTpLCC0mACgL_J8F1cw",
+  "creationInfo": {
+    "created": "2026-02-13T08:30:37Z",
+    "creators": [
+      "Organization: Belcarra Technologies (2005) Corp.",
+      "Tool: Microsoft.SBOMTool-4.1.5"
+    ]
+  },
+  "documentDescribes": [
+    "SPDXRef-RootPackage"
+  ]
+}
