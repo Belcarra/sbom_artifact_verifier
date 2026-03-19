@@ -1,11 +1,28 @@
 # Belcarra SPDX SBOM Overview
 
+Belcarra's OEM Driver Kits now include an SPDX SBOM to satisfy the NTIA Executive Order 14028.
+
+## Description 
+
 Belcarra licences a *Windows 11 NDIS/USB Filter Driver* to OEM's, allowing them to distribute the driver to their customers to use with their hardware. The driver kit is branded with the OEM's name, customized with the Vendor and Product IDs that their device(s) use. 
 
 Both kits include an SPDX SBOM manifest, in JSON format, that describes the contents of the kit. 
 The manifest is generated using the Microsoft sbom-tool, version 4.1.5, and conforms to the SPDX 2.2 specification. 
 The manifest is signed with Belcarra's EV Code Signing Certificate signature, and includes a SHA256 hash of the manifest file for integrity verification.
 
+## Belcarra SBOM Verifier
+
+Belcarra makes available a browser-based SBOM verifier that can be used to verify the manifest included in the kits. 
+
+To use the Belcarra SBOM verifier open this URL: [Verifier URL](https://verifier.belcarra.com/spdxsbom.html)
+
+The verifier will:
+- unpack the kit, 
+- extract the manifest, 
+- verify the manifest's integrity using the SHA256 hash, 
+- verify the manifest's signature using WebCrypto and PKI.js, 
+- if there is a driver catalog file it will verify the manifest's signature using the catalog file signature,
+- display the results with showing the SPDX SBOM Manifest.
 
 ## End-User Kit
 
@@ -90,6 +107,36 @@ The OEM kit manifest describes the relationship between the OEM kit and the End-
 |                        |belcarrademo-02-05-01-001-Production-amd64_arm64-drivers.zip |
 |Tool Name | Microsoft.SBOMTool-4.1.5 |
 |Timestamp | 2026-02-13T07:43:37Z |
+
+
+
+## Screenshots
+
+
+Drag and drop the OEM kit zip file onto the webpage. You may be prompted for a password.
+
+This will verify the manifest included in the OEM kit. 
+
+### Dependency Relationship Verification
+
+The OEM kit contains the end-user kit as a component. The verifier will show the OEM kit as the parent component, and the end-user kit as a child component. You can click on the end user kit name to have the verifier open the end-user kit zip file, and verify the manifest included in the end-user kit.
+
+### Belcarra Verifier Opening and Password:
+
+![OEM Kit Verification](./imgs/belcarra-verifier.png)
+![OEM Kit Verification](./imgs/belcarra-verifier-password.png)
+
+### OEM Kit Verification screenshot:
+![OEM Kit Verification](./imgs/belcarra-verifier-oem.png)
+
+### End-User Kit Verification screenshot:
+![End-User Kit Verification](./imgs/belcarra-verifier-kit.png)
+
+### Reports
+
+- [report-oem-kit.json](./report-oem-kit.json) is the sbom-tool verification report for the OEM kit.
+- [report-kit.json](./report-kit.json) is the sbom-tool verification report for the End-User kit.
+
 
 
 

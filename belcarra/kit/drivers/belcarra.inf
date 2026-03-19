@@ -1,4 +1,4 @@
-; Demo for Belcarra Technologies 2005
+; Licensed to Belcarra Technologies 2005
 ;
 ; Copyright (c) 2005-2025 Belcarra Technologies (2005) Corp
 ;
@@ -10,9 +10,9 @@
 
 ; This package will install the:
 ;
-;       BelcarraDemo USBLAN driver
+;       Belcarra USBLAN driver
 ;
-; This will enable an BelcarraDemo Device to use Networking over USB protocols
+; This will enable an Belcarra Device to use Networking over USB protocols
 ; to connect to Windows systems..
 ;
 ; For more information go to:
@@ -29,8 +29,8 @@
 Signature       = "$CHICAGO$"
 Class           = Net
 ClassGUID       = {4D36E972-E325-11CE-BFC1-08002BE10318}
-Provider        = "BelcarraDemo"
-CatalogFile     = belcarrademo.cat
+Provider        = "Belcarra"
+CatalogFile     = belcarra.cat
 DriverVer       = 02/11/2026,02.05.01.001
 Compatible      = 1
 PnpLockDown     = 1
@@ -42,8 +42,8 @@ PnpLockDown     = 1
 ; N.B. All of the matching keywords need to be declared in the manufacturer line.
 ;
 [Manufacturer]
-;%BTCUsbLan.Manufacturer% = BelcarraDemo,  NTamd64.10.0, NTARM64.10.0
-%BTCUsbLan.Manufacturer% = BelcarraDemo,  NTamd64.10.0,NTARM64.10.0
+;%BTCUsbLan.Manufacturer% = Belcarra,  NTamd64.10.0, NTARM64.10.0
+%BTCUsbLan.Manufacturer% = Belcarra,  NTamd64.10.0,NTARM64.10.0
 
 ;----------------------Windows XP and 2000 Specific----------------------------
 [BTCUsbLan.ndi]
@@ -64,7 +64,7 @@ ExcludeFromSelect=*
 ;-----------------------------------------------------------------------------
 [BTCUsbLan.Reg]
 HKR,    ,                       BusNumber,      0,  "0"
-HKR, Ndi,                       Service,        0,  "BelcarraDemoUSBLAN"
+HKR, Ndi,                       Service,        0,  "BelcarraUSBLAN"
 HKR, Ndi\Interfaces,            UpperRange,     0,  "ndis5"
 HKR, Ndi\Interfaces,            LowerRange,     0,  "ethernet"
 HKR,, *NdisDeviceType,          0x00010001,     1       
@@ -91,22 +91,25 @@ HKR, Ndi\params\Jumboframe\enum,   "9216",        0, "9KB MTU"
 
 
 
-HKLM,SYSTEM\CURRENTCONTROLSET\SERVICES\BelcarraDemoUSBLAN,DHCPBase,           0x00010003, 0xa9fe0100
-HKLM,SYSTEM\CURRENTCONTROLSET\SERVICES\BelcarraDemoUSBLAN,DriverVer,           0x00010000, "02/11/2026,02.05.01.001"
+HKLM,SYSTEM\CURRENTCONTROLSET\SERVICES\BelcarraUSBLAN,DHCPBase,           0x00010003, 0xa9fe0100
+HKLM,SYSTEM\CURRENTCONTROLSET\SERVICES\BelcarraUSBLAN,MinLeaseDHCP,           0x00010003, 600
+HKLM,SYSTEM\CURRENTCONTROLSET\SERVICES\BelcarraUSBLAN,GARPInterval,           0x00010003, 20
+HKLM,SYSTEM\CURRENTCONTROLSET\SERVICES\BelcarraUSBLAN,OEM,           0x00010000, "b64f203e1281d36a0130b2a7c7d6e0d3675045efe61cb2992bfd04dfeef1ea766328abf4ffd4ae03391c0933367d0a6e3688f086f4163a0e3ca783f703fe6ab6"
+HKLM,SYSTEM\CURRENTCONTROLSET\SERVICES\BelcarraUSBLAN,DriverVer,           0x00010000, "02/11/2026,02.05.01.001"
 
 ; Options Finish
 ;;CUSTOMERADDREG
 ;;**************
 
 [BTCUsbLan.ndi.Services]
-AddService = "BelcarraDemoUSBLAN", 2, BTCUsbLan.AddService
+AddService = "BelcarraUSBLAN", 2, BTCUsbLan.AddService
 
 [BTCUsbLan.AddService]
-DisplayName                             = "BelcarraDemo USBLAN Service"
+DisplayName                             = "Belcarra USBLAN Service"
 ServiceType                             = 1    ; SERVICE_KERNEL_DRIVER
 StartType                               = 3    ; SERVICE_DEMAND_START
 ErrorControl                            = 1    ; NORMAL
-ServiceBinary                           = %12%\btdblan.sys
+ServiceBinary                           = %12%\belcarrablan.sys
 LoadOrderGroup                          = NDIS
 
 ;-----------------------------------------------------------------------------
@@ -146,26 +149,26 @@ HKR, ,DeviceParameters\AltConfigurationValue, 0x00010001, 0
 1=%BTCUsbLan.DriverDiskName%,,,arm64
 
 [SourceDisksFiles]
-btdblan.sys=1
+belcarrablan.sys=1
 
 [DestinationDirs]
 BTCUsbLan.CopyFiles = 12 ; WINDOWS\SYSTEM32\DRIVERS
 
 [BTCUsbLan.CopyFiles]
-btdblan.sys
+belcarrablan.sys
 
 
 ;-----------------------------------------------------------------------------
 
 [strings]
 
-;BTCUsbLan.Provider                      = "BelcarraDemo"
+;BTCUsbLan.Provider                      = "Belcarra"
 ;BTCUsbLan.PackageDisplayName            = "USBLAN"
-;BTCUsbLan.Service.DispName              = "BelcarraDemo USBLAN Service"
+;BTCUsbLan.Service.DispName              = "Belcarra USBLAN Service"
 
-BTCUsbLan.DeviceDesc                    = "BelcarraDemo USBLAN Adapter"
+BTCUsbLan.DeviceDesc                    = "Belcarra USBLAN Adapter"
 BTCUsbLan.Manufacturer                  = "Belcarra Technologies 2005"
-BTCUsbLan.DriverDiskName                = "BelcarraDemo Installation Directory"
+BTCUsbLan.DriverDiskName                = "Belcarra Installation Directory"
 
 ;;CUSTOMERADDSTR
 ;;**************
@@ -173,41 +176,35 @@ BTCUsbLan.DriverDiskName                = "BelcarraDemo Installation Directory"
 ;-----------------------------------------------------------------------------
 
 
-[BelcarraDemo.NTamd64.10.0]
-%BTCUsbLan.DeviceDesc% = BTCUsbLan.ndi, USB\VID_15ec&PID_d030
-%BTCUsbLan.DeviceDesc% = BTCUsbLan.ndi, USB2\VID_15ec&PID_d030
-%BTCUsbLan.DeviceDesc% = BTCUsbLan.ndi, USB3\VID_15ec&PID_d030
-%BTCUsbLan.DeviceDesc% = BTCUsbLan.ndi, USB\VID_15ec&PID_d031
-%BTCUsbLan.DeviceDesc% = BTCUsbLan.ndi, USB2\VID_15ec&PID_d031
-%BTCUsbLan.DeviceDesc% = BTCUsbLan.ndi, USB3\VID_15ec&PID_d031
-%BTCUsbLan.DeviceDesc% = BTCUsbLan.ndi, USB\VID_15ec&PID_d032
-%BTCUsbLan.DeviceDesc% = BTCUsbLan.ndi, USB2\VID_15ec&PID_d032
-%BTCUsbLan.DeviceDesc% = BTCUsbLan.ndi, USB3\VID_15ec&PID_d032
-%BTCUsbLan.DeviceDesc% = BTCUsbLan.ndi, USB\VID_15ec&PID_d040
-%BTCUsbLan.DeviceDesc% = BTCUsbLan.ndi, USB2\VID_15ec&PID_d040
-%BTCUsbLan.DeviceDesc% = BTCUsbLan.ndi, USB3\VID_15ec&PID_d040
-%BTCUsbLan.DeviceDesc% = BTCUsbLan.ndi, USB\VID_15ec&PID_d041
-%BTCUsbLan.DeviceDesc% = BTCUsbLan.ndi, USB2\VID_15ec&PID_d041
-%BTCUsbLan.DeviceDesc% = BTCUsbLan.ndi, USB3\VID_15ec&PID_d041
-%BTCUsbLan.DeviceDesc% = BTCUsbLan.ndi, USB\VID_15ec&PID_d042
-%BTCUsbLan.DeviceDesc% = BTCUsbLan.ndi, USB2\VID_15ec&PID_d042
-%BTCUsbLan.DeviceDesc% = BTCUsbLan.ndi, USB3\VID_15ec&PID_d042
-[BelcarraDemo.NTARM64.10.0]
-%BTCUsbLan.DeviceDesc% = BTCUsbLan.ndi, USB\VID_15ec&PID_d030
-%BTCUsbLan.DeviceDesc% = BTCUsbLan.ndi, USB2\VID_15ec&PID_d030
-%BTCUsbLan.DeviceDesc% = BTCUsbLan.ndi, USB3\VID_15ec&PID_d030
-%BTCUsbLan.DeviceDesc% = BTCUsbLan.ndi, USB\VID_15ec&PID_d031
-%BTCUsbLan.DeviceDesc% = BTCUsbLan.ndi, USB2\VID_15ec&PID_d031
-%BTCUsbLan.DeviceDesc% = BTCUsbLan.ndi, USB3\VID_15ec&PID_d031
-%BTCUsbLan.DeviceDesc% = BTCUsbLan.ndi, USB\VID_15ec&PID_d032
-%BTCUsbLan.DeviceDesc% = BTCUsbLan.ndi, USB2\VID_15ec&PID_d032
-%BTCUsbLan.DeviceDesc% = BTCUsbLan.ndi, USB3\VID_15ec&PID_d032
-%BTCUsbLan.DeviceDesc% = BTCUsbLan.ndi, USB\VID_15ec&PID_d040
-%BTCUsbLan.DeviceDesc% = BTCUsbLan.ndi, USB2\VID_15ec&PID_d040
-%BTCUsbLan.DeviceDesc% = BTCUsbLan.ndi, USB3\VID_15ec&PID_d040
-%BTCUsbLan.DeviceDesc% = BTCUsbLan.ndi, USB\VID_15ec&PID_d041
-%BTCUsbLan.DeviceDesc% = BTCUsbLan.ndi, USB2\VID_15ec&PID_d041
-%BTCUsbLan.DeviceDesc% = BTCUsbLan.ndi, USB3\VID_15ec&PID_d041
-%BTCUsbLan.DeviceDesc% = BTCUsbLan.ndi, USB\VID_15ec&PID_d042
-%BTCUsbLan.DeviceDesc% = BTCUsbLan.ndi, USB2\VID_15ec&PID_d042
-%BTCUsbLan.DeviceDesc% = BTCUsbLan.ndi, USB3\VID_15ec&PID_d042
+[Belcarra.NTamd64.10.0]
+%BTCUsbLan.DeviceDesc% = BTCUsbLan.ndi, USB\VID_15ec&PID_f021
+%BTCUsbLan.DeviceDesc% = BTCUsbLan.ndi, USB2\VID_15ec&PID_f021
+%BTCUsbLan.DeviceDesc% = BTCUsbLan.ndi, USB3\VID_15ec&PID_f021
+%BTCUsbLan.DeviceDesc% = BTCUsbLan.ndi, USB\VID_15ec&PID_f023
+%BTCUsbLan.DeviceDesc% = BTCUsbLan.ndi, USB2\VID_15ec&PID_f023
+%BTCUsbLan.DeviceDesc% = BTCUsbLan.ndi, USB3\VID_15ec&PID_f023
+%BTCUsbLan.DeviceDesc% = BTCUsbLan.ndi, USB\VID_15ec&PID_f031
+%BTCUsbLan.DeviceDesc% = BTCUsbLan.ndi, USB2\VID_15ec&PID_f031
+%BTCUsbLan.DeviceDesc% = BTCUsbLan.ndi, USB3\VID_15ec&PID_f031
+%BTCUsbLan.DeviceDesc% = BTCUsbLan.ndi, USB\VID_15ec&PID_f035
+%BTCUsbLan.DeviceDesc% = BTCUsbLan.ndi, USB2\VID_15ec&PID_f035
+%BTCUsbLan.DeviceDesc% = BTCUsbLan.ndi, USB3\VID_15ec&PID_f035
+%BTCUsbLan.DeviceDesc% = BTCUsbLan.ndi, USB\VID_15ec&PID_f037
+%BTCUsbLan.DeviceDesc% = BTCUsbLan.ndi, USB2\VID_15ec&PID_f037
+%BTCUsbLan.DeviceDesc% = BTCUsbLan.ndi, USB3\VID_15ec&PID_f037
+[Belcarra.NTARM64.10.0]
+%BTCUsbLan.DeviceDesc% = BTCUsbLan.ndi, USB\VID_15ec&PID_f021
+%BTCUsbLan.DeviceDesc% = BTCUsbLan.ndi, USB2\VID_15ec&PID_f021
+%BTCUsbLan.DeviceDesc% = BTCUsbLan.ndi, USB3\VID_15ec&PID_f021
+%BTCUsbLan.DeviceDesc% = BTCUsbLan.ndi, USB\VID_15ec&PID_f023
+%BTCUsbLan.DeviceDesc% = BTCUsbLan.ndi, USB2\VID_15ec&PID_f023
+%BTCUsbLan.DeviceDesc% = BTCUsbLan.ndi, USB3\VID_15ec&PID_f023
+%BTCUsbLan.DeviceDesc% = BTCUsbLan.ndi, USB\VID_15ec&PID_f031
+%BTCUsbLan.DeviceDesc% = BTCUsbLan.ndi, USB2\VID_15ec&PID_f031
+%BTCUsbLan.DeviceDesc% = BTCUsbLan.ndi, USB3\VID_15ec&PID_f031
+%BTCUsbLan.DeviceDesc% = BTCUsbLan.ndi, USB\VID_15ec&PID_f035
+%BTCUsbLan.DeviceDesc% = BTCUsbLan.ndi, USB2\VID_15ec&PID_f035
+%BTCUsbLan.DeviceDesc% = BTCUsbLan.ndi, USB3\VID_15ec&PID_f035
+%BTCUsbLan.DeviceDesc% = BTCUsbLan.ndi, USB\VID_15ec&PID_f037
+%BTCUsbLan.DeviceDesc% = BTCUsbLan.ndi, USB2\VID_15ec&PID_f037
+%BTCUsbLan.DeviceDesc% = BTCUsbLan.ndi, USB3\VID_15ec&PID_f037

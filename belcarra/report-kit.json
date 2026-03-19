@@ -114,7 +114,7 @@
             "Value" : "Warning"
          }
       },
-      "TotalExecutionTimeInSeconds" : 0.0956162,
+      "TotalExecutionTimeInSeconds" : 0.0808228,
       "ValidationTelemetery" : {
          "FilesFailedCount" : 0,
          "FilesSkippedCount" : 3,
