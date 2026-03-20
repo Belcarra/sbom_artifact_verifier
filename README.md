@@ -47,6 +47,9 @@ No data leaves your machine: all processing happens locally in your browser.
 The page is static (HTML/JS/CSS) and can be hosted on GitHub Pages. For example:
 https://verifier.belcarra.com
 
+Published example reports are available under:
+https://verifier.belcarra.com/belcarra/
+
 ## Repository
 GitHub: https://github.com/Belcarra/sbom_artifact_verifier
 
