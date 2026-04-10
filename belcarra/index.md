@@ -29,6 +29,19 @@ The verifier will:
 - if there is a driver catalog file it will verify the package catalog signature,
 - display the results along with the SPDX SBOM manifest details.
 
+## Verification Layers
+
+The Belcarra packaging and verification flow uses four distinct verification layers:
+
+1. `manifest.spdx.json.cat`
+   Belcarra signs the Windows catalog for the SBOM manifest artifacts.
+2. `manifest.spdx.json.sha256`
+   `sbom-tool` generates the SHA-256 sidecar for `manifest.spdx.json`.
+3. `manifest.spdx.json`
+   The SBOM lists hashes for the kit contents, and the verifier recomputes those hashes for the described files outside `_manifest`.
+4. Driver catalog, e.g. `belcarra.cat`
+   In the end-user kit, the Microsoft-signed driver catalog provides the Windows driver-package signature path for the installable payload.
+
 ## End-User Kit
 
 The end-user kit, a zip file, contains the driver files, installation instructions, and license. Two bat scripts are provided:
