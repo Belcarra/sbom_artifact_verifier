@@ -571,6 +571,8 @@
                 let mismatched = 0;
                 const statusMap = new Map();
 
+                const resultRows = [];
+
                 // 2. Iterate through files listed in the manifest
                 for (const item of (manifest.files || [])) {
                     const cleanPath = normalizePath((item.fileName || '').replace(/^\.\//, ""));
@@ -620,26 +622,39 @@
                     }
 
                     processed++;
-                    const row = `<tr><td>${cleanPath}</td><td><code>${(expectedHash||'').substring(0,16)}...</code></td><td>${statusHtml}</td></tr>`;
-                    resultsBody.innerHTML += row;
+                    resultRows.push({
+                        path: cleanPath,
+                        expectedHash: expectedHash || '',
+                        status: statusMap.get(cleanPath.toLowerCase())?.status || 'ok',
+                    });
                 }
 
-                // 3. Identify extras: files in the ZIP that are not in the manifest (excluding _manifest/)
+                // 3. Identify extras: files in the ZIP that are not in the manifest and are outside _manifest.
+                // Unexpected _manifest files are handled after the SBOM-specific checks.
                 const extras = [];
+                const manifestExtras = [];
                 for (const entry of allEntries) {
                     if (entry.endsWith('/')) continue; // skip directories
                     const np = normalizePath(entry);
                     const rel = (rootPrefix && np.startsWith(normalizePath(rootPrefix + '/')))
                         ? np.substring(normalizePath(rootPrefix + '/').length)
                         : np;
-                    if (rel.toLowerCase().startsWith('_manifest/')) continue;
-                    if (!manifestSet.has(rel.toLowerCase())) extras.push(rel);
+                    if (manifestSet.has(rel.toLowerCase())) continue;
+                    if (rel.toLowerCase().startsWith('_manifest/')) manifestExtras.push(rel);
+                    else extras.push(rel);
                 }
                 for (const extra of extras) {
                     console.warn('[SBOM Validator] FILE', extra, '=> EXTRA (not in manifest)');
-                    const row = `<tr><td>${extra}</td><td><code>—</code></td><td><span class="fail">EXTRA</span></td></tr>`;
-                    resultsBody.innerHTML += row;
-                    statusMap.set(extra.toLowerCase(), { path: extra, status: 'extra' });
+                    resultRows.push({
+                        path: extra,
+                        expectedHash: '',
+                        status: 'extra',
+                    });
+                    const lower = extra.toLowerCase();
+                    const detail = lower.startsWith('_manifest/')
+                        ? 'Not present in manifest.spdx.json.cat.'
+                        : 'File is present in the archive but not listed in the manifest.';
+                    statusMap.set(lower, { path: extra, status: 'extra', detail });
                 }
 
                 // 4. Final Verdict
@@ -649,13 +664,48 @@
                     ? `<strong>✅ Validation Passed:</strong> Processed ${processed} files. All file hashes match the manifest.`
                     : `<strong>❌ Validation Issues:</strong> Checked ${processed} files. Missing: ${missing}, Mismatched: ${mismatched}, Extra: ${extras.length}.`;
                 statusBox.style.display = 'block';
+
+                // 5. SBOM integrity: compare manifest.spdx.json vs .sha256 if present
+                const sbomIntegrityInfo = await verifySbomIntegrity(zip, manifestPath, manifestContent, sbomStatusEl, sbomDetailEl);
+
+                // 6. Catalog signature (best-effort cryptographic check)
+                const driverCatalogInfo = await verifyCatalogSignature(zip, catStatusEl, catDetailEl, { scope: 'driver' });
+                const sbomCatalogInfo = await verifyCatalogSignature(zip, sbomCatStatusEl, sbomCatDetailEl, { scope: 'sbom' });
+
+                annotateVerificationStatus(statusMap, {
+                    sbomIntegrityInfo,
+                    driverCatalogInfo,
+                    sbomCatalogInfo,
+                    rootPrefix,
+                });
+
+                const expectedManifestArtifacts = new Set([
+                    '_manifest/spdx_2.2/manifest.spdx.json',
+                    '_manifest/spdx_2.2/manifest.spdx.json.sha256',
+                    '_manifest/spdx_2.2/manifest.spdx.json.cat',
+                ]);
+                for (const extra of manifestExtras) {
+                    const key = extra.toLowerCase();
+                    if (expectedManifestArtifacts.has(key) || statusMap.has(key)) continue;
+                    console.warn('[SBOM Validator] FILE', extra, '=> EXTRA (not present in manifest.spdx.json.cat)');
+                    resultRows.push({
+                        path: extra,
+                        expectedHash: '',
+                        status: 'extra',
+                    });
+                    statusMap.set(key, { path: extra, status: 'extra', detail: 'Not present in manifest.spdx.json.cat.' });
+                }
+
+                resultRows.sort((a, b) => compareArchivePathOrder(a.path, b.path));
+                resultsBody.innerHTML = resultRows.map(({ path, expectedHash, status }) => {
+                    const entry = statusMap.get(path.toLowerCase()) || { status };
+                    return `<tr><td>${path}</td><td><code>${expectedHash ? expectedHash.substring(0,16) + '...' : '—'}</code></td><td>${renderStatusText(entry.status, entry.detail)}</td></tr>`;
+                }).join('');
+
                 resultsTable.style.display = 'table';
-                // Render tree views
                 console.log('[SBOM Validator] Rendering tree: items in statusMap =', statusMap.size);
                 treePanel.style.display = 'flex';
-                // renderTree(statusMap); // hide secondary tree; preserve legend only
                 renderArchiveTreeText(allEntries, file.name, statusMap, rootPrefix);
-                // Diagnostics: measure layout (no auto-scroll)
                 const tpStyle = window.getComputedStyle(treePanel);
                 const rcStyle = window.getComputedStyle(resultsContainer);
                 console.log('[SBOM Validator] Tree HTML length:', (treeView.innerHTML||'').length,
@@ -665,19 +715,11 @@
                             ' resultsContainer.h=', resultsContainer.offsetHeight,
                             ' body.h=', document.body.offsetHeight,
                             ' vh=', window.innerHeight);
-                // Do not auto-scroll; keep user at the top by default
                 if (treePanel.offsetHeight === 0) {
                     treePanel.style.minHeight = '40px';
                     treePanel.style.border = '1px solid #e2e2e2';
                 }
                 try { window.scrollTo({ top: 0, behavior: 'auto' }); } catch (_) {}
-
-                // 5. SBOM integrity: compare manifest.spdx.json vs .sha256 if present
-                await verifySbomIntegrity(zip, manifestPath, manifestContent, sbomStatusEl, sbomDetailEl);
-
-                // 6. Catalog signature (best-effort cryptographic check)
-                await verifyCatalogSignature(zip, catStatusEl, catDetailEl, { scope: 'driver' });
-                await verifyCatalogSignature(zip, sbomCatStatusEl, sbomCatDetailEl, { scope: 'sbom' });
 
                 // 7. Render CISA Minimum Elements summary table
                 try { renderMinimumElements(manifest, zip, ctx); } catch (e) { console.warn('[SBOM Validator] Minimum Elements rendering error:', e); }
@@ -792,6 +834,81 @@
             return String(str).replace(/[&<>'"]/g, s => map[s]);
         }
 
+        function escapeAttr(str) {
+            return escapeHtml(str).replace(/\n/g, '&#10;');
+        }
+
+        function renderStatusText(status, detail) {
+            const label = status === 'ok' ? 'MATCH' : (status === 'bad' ? 'TAMPERED' : (status === 'missing' ? 'MISSING' : 'EXTRA'));
+            const cls = status === 'ok' ? 'pass' : 'fail';
+            const title = detail ? ` title="${escapeAttr(detail)}"` : '';
+            return `<span class="${cls}"${title}>${label}</span>`;
+        }
+
+        function upsertStatusEntry(statusMap, path, status, detail, rootPrefix = '') {
+            if (!path) return;
+            const cleanPath = deriveRelPath(String(path).replace(/^\.\//, ''), rootPrefix);
+            const key = cleanPath.toLowerCase();
+            const existing = statusMap.get(key) || { path: cleanPath };
+            const keepExisting = existing.status && existing.status !== 'ok' && status === 'ok';
+            statusMap.set(key, {
+                ...existing,
+                path: cleanPath,
+                status: keepExisting ? existing.status : status,
+                detail: keepExisting ? (existing.detail || detail) : detail,
+            });
+        }
+
+        function annotateVerificationStatus(statusMap, verification) {
+            const { sbomIntegrityInfo, driverCatalogInfo, sbomCatalogInfo, rootPrefix } = verification || {};
+
+            for (const entry of statusMap.values()) {
+                if (entry.status === 'bad' && !entry.detail) entry.detail = 'File does not match the checksum recorded in the manifest.';
+                else if (entry.status === 'missing' && !entry.detail) entry.detail = 'File is listed in the manifest but is missing from the archive.';
+                else if (entry.status === 'extra' && !entry.detail) entry.detail = 'File is present in the archive but not listed in the manifest.';
+                else if (entry.status === 'ok' && !entry.detail) entry.detail = 'Manifest checksum matched.';
+
+                if (entry.status !== 'ok') continue;
+
+                const lower = entry.path.toLowerCase();
+                if (/\.(sys|inf|cat)$/.test(lower) && !(lower.includes('/_manifest/') || lower.startsWith('_manifest/')) && driverCatalogInfo?.status === 'ok') {
+                    entry.detail = 'Manifest checksum matched. Driver catalog signature verified for this package.';
+                }
+            }
+
+            if (sbomIntegrityInfo?.manifestPath) {
+                const manifestStatus = (sbomIntegrityInfo.status === 'ok' && sbomCatalogInfo?.status === 'ok') ? 'ok' : 'bad';
+                const manifestDetail = manifestStatus === 'ok'
+                    ? 'SBOM catalog signature verified. manifest.spdx.json matches manifest.spdx.json.sha256.'
+                    : (sbomIntegrityInfo.detail || 'manifest.spdx.json failed integrity verification.');
+                upsertStatusEntry(statusMap, sbomIntegrityInfo.manifestPath, manifestStatus, manifestDetail, rootPrefix);
+            }
+
+            if (sbomIntegrityInfo?.shaPath) {
+                const shaStatus = sbomCatalogInfo?.status === 'ok' ? 'ok' : (sbomCatalogInfo?.status === 'missing' ? 'missing' : 'bad');
+                const shaDetail = shaStatus === 'ok'
+                    ? 'SBOM catalog signature verified. This is the SHA-256 sidecar for manifest.spdx.json.'
+                    : (sbomCatalogInfo?.detail || 'manifest.spdx.json.sha256 is not covered by a verified SBOM catalog signature.');
+                upsertStatusEntry(statusMap, sbomIntegrityInfo.shaPath, shaStatus, shaDetail, rootPrefix);
+            }
+
+            if (sbomCatalogInfo?.catPath) {
+                const catStatus = sbomCatalogInfo.status === 'ok' ? 'ok' : 'bad';
+                const catDetail = sbomCatalogInfo.status === 'ok'
+                    ? 'SBOM catalog signature verified.'
+                    : (sbomCatalogInfo.detail || 'SBOM catalog signature failed verification.');
+                upsertStatusEntry(statusMap, sbomCatalogInfo.catPath, catStatus, catDetail, rootPrefix);
+            }
+
+            if (driverCatalogInfo?.catPath) {
+                const catStatus = driverCatalogInfo.status === 'ok' ? 'ok' : 'bad';
+                const catDetail = driverCatalogInfo.status === 'ok'
+                    ? 'Driver catalog signature verified.'
+                    : (driverCatalogInfo.detail || 'Driver catalog signature failed verification.');
+                upsertStatusEntry(statusMap, driverCatalogInfo.catPath, catStatus, catDetail, rootPrefix);
+            }
+        }
+
 
     </script>
     
@@ -838,6 +955,21 @@
             return root;
         }
 
+        function compareArchivePathOrder(a, b) {
+            const aParts = normalizePath(a).split('/').filter(Boolean);
+            const bParts = normalizePath(b).split('/').filter(Boolean);
+            const limit = Math.min(aParts.length, bParts.length);
+
+            for (let i = 0; i < limit; i++) {
+                if (aParts[i] !== bParts[i]) return aParts[i].localeCompare(bParts[i]);
+            }
+
+            // If one path continues, that means it is under a directory that should
+            // appear before a file at the same level in the archive tree.
+            if (aParts.length !== bParts.length) return bParts.length - aParts.length;
+            return normalizePath(a).localeCompare(normalizePath(b));
+        }
+
         function collectChildren(node) {
             const dirs = Array.from(node.dirs.values()).sort((a,b) => a.name.localeCompare(b.name)).map(d => ({ type: 'dir', node: d }));
             const files = node.files.sort((a,b) => a.name.localeCompare(b.name)).map(f => ({ type: 'file', name: f.name, path: f.path }));
@@ -872,14 +1004,14 @@
                 if (!shaFile) {
                     statusEl.innerHTML = '<span class="badge extra">NO SHA256</span>';
                     detailEl.textContent = 'No manifest.spdx.json.sha256 found.';
-                    return;
+                    return { status: 'missing', manifestPath, shaPath, detail: 'No manifest.spdx.json.sha256 found.' };
                 }
                 const shaText = await shaFile.async('string');
                 const expected = (shaText.match(/[A-Fa-f0-9]{64}/) || [''])[0];
                 if (!expected) {
                     statusEl.innerHTML = '<span class="badge bad">INVALID SHA</span>';
                     detailEl.textContent = 'Could not parse a 64-hex SHA-256 from manifest.spdx.json.sha256.';
-                    return;
+                    return { status: 'bad', manifestPath, shaPath, detail: 'Could not parse a 64-hex SHA-256 from manifest.spdx.json.sha256.' };
                 }
                 // Compute SHA-256 over the exact bytes of manifest.spdx.json as stored in the ZIP
                 const manifestBytes = await zip.file(manifestPath).async('arraybuffer');
@@ -888,13 +1020,16 @@
                 if (actual.toLowerCase() === expected.toLowerCase()) {
                     statusEl.innerHTML = '<span class="badge ok">OK</span>';
                     detailEl.textContent = 'manifest.spdx.json matches manifest.spdx.json.sha256';
+                    return { status: 'ok', manifestPath, shaPath, detail: 'manifest.spdx.json matches manifest.spdx.json.sha256' };
                 } else {
                     statusEl.innerHTML = '<span class="badge bad">MISMATCH</span>';
                     detailEl.textContent = `Expected ${expected.slice(0,16)}..., got ${actual.slice(0,16)}...`;
+                    return { status: 'bad', manifestPath, shaPath, detail: 'manifest.spdx.json does not match manifest.spdx.json.sha256.' };
                 }
             } catch (e) {
                 statusEl.innerHTML = '<span class="badge bad">ERROR</span>';
                 detailEl.textContent = 'Error verifying SBOM hash: ' + (e?.message || e);
+                return { status: 'bad', manifestPath, detail: 'Error verifying manifest.spdx.json.sha256.' };
             }
         }
 
@@ -970,14 +1105,15 @@
                     if (wantSbom) {
                         statusEl.innerHTML = '<span class="badge extra">NO CATALOG</span>';
                         detailEl.textContent = 'No SBOM .cat found in _manifest.';
+                        return { status: 'missing', catPath: '', detail: 'No SBOM .cat found in _manifest.' };
                     } else {
                         // For driver catalog: hide the entire section when not present
                         const sec = document.getElementById('cat-signature');
                         if (sec) sec.style.display = 'none';
                         statusEl.innerHTML = '';
                         detailEl.textContent = '';
+                        return { status: 'missing', catPath: '', detail: 'No driver catalog found in the package.' };
                     }
-                    return;
                 }
                 // Ensure driver section is visible if we found a driver catalog
                 if (!wantSbom) { const sec = document.getElementById('cat-signature'); if (sec) sec.style.display = ''; }
@@ -1057,9 +1193,15 @@
                 const signerLine = subjectCN ? ` Signer: ${subjectCN}` : '';
                 const chainLine = rootCN ? ` (Issuer: ${issuerCN || 'n/a'}, Root: ${rootCN})` : '';
                 detailEl.textContent = `${catPath}: ${verified ? 'Cryptographic signature verified.' : 'Parsed CMS structure; full trust requires OS tools.'}${signerLine}${chainLine}`;
+                return {
+                    status: verified ? 'ok' : 'bad',
+                    catPath,
+                    detail: verified ? 'Cryptographic signature verified.' : 'Catalog signature could not be verified cryptographically.',
+                };
             } catch (e) {
                 statusEl.innerHTML = '<span class="badge bad">ERROR</span>';
                 detailEl.textContent = 'Catalog verification error: ' + (e?.message || e);
+                return { status: 'bad', catPath: '', detail: 'Catalog verification error.' };
             }
         }
 
@@ -1073,21 +1215,31 @@
                 const safe = (value && String(value).trim().length) ? esc(String(value)) : '—';
                 minElementsBody.innerHTML += `<tr><td>${esc(label)}</td><td>${safe}</td></tr>`;
             };
+            const addHtmlRow = (label, html) => {
+                const safe = (html && String(html).trim().length) ? html : '—';
+                minElementsBody.innerHTML += `<tr><td>${esc(label)}</td><td>${safe}</td></tr>`;
+            };
             addRow('SBOM Author', rows.author || '');
             addRow('Component Name', rows.componentName || '');
             addRow('Component Version', rows.componentVersion || '');
             // Optional parent relationship when opened from a parent kit
-            if (ctx?.parentContext?.parentDisplayName && rows.dependencyTo) {
-                const parentDep = `${ctx.parentContext.parentDisplayName} <strong>CONTAINS</strong> ${rows.dependencyTo}`;
-                minElementsBody.innerHTML += `<tr><td>${esc('Dependency Relationship (from Parent)')}</td><td>${parentDep}</td></tr>`;
+            if (ctx?.parentContext?.parentDisplayName) {
+                addRow('CONTAINED_BY', ctx.parentContext.parentDisplayName);
             }
-            // Dependency with optional second line for contained zip filename + clickable link
-            if (rows.dependency || rows.dependencyZipPath) {
-                const depLine = (rows.dependencyFrom && rows.dependencyType && rows.dependencyTo)
-                    ? `${esc(rows.dependencyFrom)} <strong>${esc(rows.dependencyType)}</strong> ${esc(rows.dependencyTo)}`
-                    : esc(rows.dependency || '');
-                const depHtml = `<div>${depLine}</div>` + (rows.dependencyZipName ? `<div><a href="#" id="dep-zip-link">${esc(rows.dependencyZipName)}</a></div>` : '');
-                minElementsBody.innerHTML += `<tr><td>Dependency Relationship</td><td>${depHtml}</td></tr>`;
+            // Dependency with optional clickable contained zip path
+            if (rows.dependencyType || rows.dependency || rows.dependencyZipPath) {
+                const depLabel = rows.dependencyType || 'Dependency Relationship';
+                let depHtml = '—';
+                if (rows.dependencyType === 'DESCRIBES') {
+                    depHtml = esc(rows.dependencyTo || rows.componentName || '');
+                } else if (rows.dependencyType === 'CONTAINS' && rows.dependencyZipPath) {
+                    depHtml = `<a href="#" id="dep-zip-link">${esc(rows.dependencyZipPath)}</a>`;
+                } else if (rows.dependencyTo) {
+                    depHtml = esc(rows.dependencyTo);
+                } else {
+                    depHtml = esc(rows.dependency || '');
+                }
+                addHtmlRow(depLabel, depHtml);
                 // Attach click if we can find the entry inside the zip
                 if (rows.dependencyZipPath) {
                     setTimeout(() => {
@@ -1207,11 +1359,12 @@
             if (!statusMap) return '';
             const entry = statusMap.get(relLower);
             if (!entry || !entry.status) return '';
+            const title = entry.detail ? ` title="${escapeAttr(entry.detail)}"` : '';
             switch (entry.status) {
-                case 'ok': return '<span class="badge ok">OK</span>';
-                case 'bad': return '<span class="badge bad">TAMPERED</span>';
-                case 'missing': return '<span class="badge missing">MISSING</span>';
-                case 'extra': return '<span class="badge extra">EXTRA</span>';
+                case 'ok': return `<span class="badge ok"${title}>OK</span>`;
+                case 'bad': return `<span class="badge bad"${title}>TAMPERED</span>`;
+                case 'missing': return `<span class="badge missing"${title}>MISSING</span>`;
+                case 'extra': return `<span class="badge extra"${title}>EXTRA</span>`;
                 default: return '';
             }
         }

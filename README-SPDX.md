@@ -10,6 +10,26 @@ Two SPDX 2.2 JSON SBOMs are generated:
 
 Each SBOM includes `creationInfo`, a root package, `filesAnalyzed`, `hasFiles`, and relationships to support dependency graphing and integrity verification.
 
+## Verification Layers
+The Belcarra packaging and verification flow uses four distinct verification layers:
+
+1. Driver catalog, e.g. `belcarra.cat`
+   In the end-user kit, the Microsoft-signed driver catalog provides the Windows driver-package signature path for the installable payload.
+2. `manifest.spdx.json`
+   The SBOM lists hashes for the kit contents. The verifier recomputes those hashes for the files described by the manifest, excluding the `_manifest` directory.
+3. `manifest.spdx.json.sha256`
+   `sbom-tool` generates the SHA-256 sidecar for `manifest.spdx.json`. This provides a direct integrity check of the JSON manifest.
+4. `manifest.spdx.json.cat`
+   Belcarra signs the Windows catalog for the SBOM manifest artifacts. In the updated packaging flow, the catalog covers 
+   all files in the kit (except for the manifest.spdx.json.cat file itself).
+   Including both `manifest.spdx.json` and `manifest.spdx.json.sha256`.
+
+In summary:
+- Microsoft signs the driver package catalog for the installable driver payload.
+- The SBOM JSON authenticates the release contents by file hash.
+- `sbom-tool` provides the checksum for the SBOM JSON.
+- Belcarra signs the SBOM artifacts.
+
 ## How This Applies to the Two Packages
 ### OEM kit (`belcarra/oem/_manifest/spdx_2.2/manifest.spdx.json`)
 - **Root package**: `belcarrademo` version `02-05-01-001`.
