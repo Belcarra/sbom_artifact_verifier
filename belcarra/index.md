@@ -33,8 +33,8 @@ The verifier will:
 
 The Belcarra packaging and verification flow uses four distinct verification layers:
 
-1. `manifest.spdx.json.cat`
-   Belcarra signs the Windows catalog for the SBOM manifest artifacts.
+1. `_manifest/manifest.cat`
+   Belcarra signs the Windows catalog for the package and SBOM artifacts.
 2. `manifest.spdx.json.sha256`
    `sbom-tool` generates the SHA-256 sidecar for `manifest.spdx.json`.
 3. `manifest.spdx.json`
@@ -52,9 +52,9 @@ The end-user kit, a zip file, contains the driver files, installation instructio
 ```text
 belcarra-02-05-01-001-Production-amd64_arm64-drivers.zip
 ├───┬ _manifest/
+│   ├── manifest.cat
 │   └───┬ spdx_2.2/
 │       ├── manifest.spdx.json
-│       ├── manifest.spdx.json.cat
 │       └── manifest.spdx.json.sha256
 ├───┬ drivers/
 │   ├───┬ amd64/
@@ -96,9 +96,9 @@ The OEM kit, a password-protected zip file, contains a README, the cfg files use
 ```text
 belcarra-02-05-01-001-Production-amd64_arm64.zip
 ├───┬ _manifest/
+│   ├── manifest.cat
 │   └───┬ spdx_2.2/
 │       ├── manifest.spdx.json
-│       ├── manifest.spdx.json.cat
 │       └── manifest.spdx.json.sha256
 ├── belcarra-02-05-01-001-Production-amd64_arm64-drivers.zip
 ├── belcarra.cfg
@@ -131,6 +131,12 @@ The OEM kit manifest describes the relationship between the OEM kit and the end-
 Drag and drop the OEM kit zip file onto the webpage. You may be prompted for a password.
 
 This verifies the manifest included in the OEM kit.
+
+To regenerate the report screenshots and rebuild the Belcarra PDF from this repository:
+
+```bash
+make -C belcarra report
+```
 
 ### Dependency Relationship Verification
 
