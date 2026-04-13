@@ -98,6 +98,9 @@
         .modal .primary { background: #2da44e; color: #fff; border-color: #2da44e; }
         .modal .primary:hover { background: #2c974b; }
         .modal-note { font-size: 12px; color: #555; margin-top: 8px; }
+        .text-preview { max-height: 70vh; overflow: auto; white-space: pre-wrap; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace; font-size: 13px; line-height: 1.45; border: 1px solid #e2e2e2; border-radius: 6px; padding: 10px; background: #fafafa; }
+        .tree-file-link { color: inherit; text-decoration: underline; text-decoration-style: dotted; }
+        .tree-file-link:hover { color: #0056b3; }
 
         /* Text-based tree block (box-drawing chars) */
         .tree-pre {
@@ -136,7 +139,7 @@
         </p>
         <p><strong>What it does not do:</strong> It does not consult the Windows trust store or perform revocation checks. For official Windows trust, use <code>signtool verify /kp /v</code> on the catalog.</p>
         <p style="font-size:15px; font-weight:600;">All processing happens locally in your browser. No files or passwords are sent anywhere.</p>
-        <p style="margin-top:8px;">Project: <a href="https://github.com/Belcarra/sbom_artifact_verifier" target="_blank" rel="noopener">git@github.com:Belcarra/sbom_artifact_verifier.git</a> &nbsp;|&nbsp; Version: 0.02 beta</p>
+        <p style="margin-top:8px;">Project: <a href="https://github.com/Belcarra/sbom_artifact_verifier" target="_blank" rel="noopener">git@github.com:Belcarra/sbom_artifact_verifier.git</a> &nbsp;|&nbsp; Version: 0.03 beta</p>
         <p style="margin-top:6px;">Example reports: <a href="belcarra/">Belcarra SPDX SBOM Overview</a></p>
     </div>
     <input type="file" id="file-input" style="display: none;" accept=".zip">
@@ -240,6 +243,19 @@
         </div>
     </div>
 
+    <div id="text-modal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="text-title">
+        <div class="modal" style="width:min(900px, 94vw);">
+            <h3 id="text-title">File Preview</h3>
+            <p id="text-file" class="modal-note" style="margin-top:6px;"></p>
+            <pre id="text-preview" class="text-preview"></pre>
+            <div class="modal-actions">
+                <div style="flex:1"></div>
+                <button id="text-close" type="button" class="primary">Close</button>
+            </div>
+            <div class="modal-note">Text preview is rendered locally in your browser from the selected archive entry.</div>
+        </div>
+    </div>
+
     <script>
         // Basic environment checks
         if (typeof JSZip === 'undefined') {
@@ -259,6 +275,10 @@
         const resultsContainer = document.getElementById('results-container');
         const treePanel = document.getElementById('tree-panel');
         const archiveTree = document.getElementById('archive-tree');
+        const textModal = document.getElementById('text-modal');
+        const textFileEl = document.getElementById('text-file');
+        const textPreviewEl = document.getElementById('text-preview');
+        const textCloseBtn = document.getElementById('text-close');
         const treeView = document.getElementById('tree-view');
         const titleEl = document.getElementById('title');
         const introEl = document.getElementById('intro');
@@ -361,6 +381,9 @@
                 resultsContainer.style.display = 'none';
                 // Scroll to top
                 window.scrollTo({ top: 0, behavior: 'auto' });
+                currentZipFacade = null;
+                currentRootPrefix = '';
+                if (textModal) textModal.style.display = 'none';
                 // Reset package trail
                 packageStack = [];
                 updatePackageTrail();
@@ -411,6 +434,8 @@
         fileInput.onchange = (e) => { if (e.target.files.length) handleFile(e.target.files[0]); };
 
         let packageStack = [];
+        let currentZipFacade = null;
+        let currentRootPrefix = '';
 
         function updatePackageTrail() {
             try {
@@ -560,6 +585,8 @@
                 const marker = '/_manifest/';
                 const idx = lower.indexOf(marker);
                 const rootPrefix = idx > 0 ? manifestPath.substring(0, idx) : '';
+                currentZipFacade = zip;
+                currentRootPrefix = rootPrefix;
                 log('Root prefix:', rootPrefix || '(none)');
 
                 let allPassed = true;
@@ -652,7 +679,7 @@
                     });
                     const lower = extra.toLowerCase();
                     const detail = lower.startsWith('_manifest/')
-                        ? 'Not present in manifest.spdx.json.cat.'
+                        ? 'Not present in the manifest catalog.'
                         : 'File is present in the archive but not listed in the manifest.';
                     statusMap.set(lower, { path: extra, status: 'extra', detail });
                 }
@@ -682,18 +709,18 @@
                 const expectedManifestArtifacts = new Set([
                     '_manifest/spdx_2.2/manifest.spdx.json',
                     '_manifest/spdx_2.2/manifest.spdx.json.sha256',
-                    '_manifest/spdx_2.2/manifest.spdx.json.cat',
                 ]);
+                if (sbomCatalogInfo?.catPath) expectedManifestArtifacts.add(deriveRelPath(sbomCatalogInfo.catPath, rootPrefix).toLowerCase());
                 for (const extra of manifestExtras) {
                     const key = extra.toLowerCase();
                     if (expectedManifestArtifacts.has(key) || statusMap.has(key)) continue;
-                    console.warn('[SBOM Validator] FILE', extra, '=> EXTRA (not present in manifest.spdx.json.cat)');
+                    console.warn('[SBOM Validator] FILE', extra, '=> EXTRA (not present in manifest catalog)');
                     resultRows.push({
                         path: extra,
                         expectedHash: '',
                         status: 'extra',
                     });
-                    statusMap.set(key, { path: extra, status: 'extra', detail: 'Not present in manifest.spdx.json.cat.' });
+                    statusMap.set(key, { path: extra, status: 'extra', detail: 'Not present in the manifest catalog.' });
                 }
 
                 resultRows.sort((a, b) => compareArchivePathOrder(a.path, b.path));
@@ -970,6 +997,64 @@
             return normalizePath(a).localeCompare(normalizePath(b));
         }
 
+        function isTextPreviewable(path) {
+            const lower = normalizePath(path).toLowerCase();
+            return /\.(bat|cmd|txt|inf|cfg|ini|json|md|sha256|ps1|xml|log)$/i.test(lower);
+        }
+
+        function renderArchiveFileName(name, path) {
+            if (!isTextPreviewable(path)) return `<span class="tree-name">${escapeHtml(name)}</span>`;
+            return `<a href="#" class="tree-name tree-file-link" data-path="${escapeAttr(path)}">${escapeHtml(name)}</a>`;
+        }
+
+        function resolveZipEntry(zip, path, rootPrefix) {
+            if (!zip || !path) return null;
+            const target = normalizePath(path).replace(/^\.\//, '');
+            const targetWithRoot = normalizePath((rootPrefix ? rootPrefix + '/' : '') + target);
+            const targetLower = target.toLowerCase();
+            const targetWithRootLower = targetWithRoot.toLowerCase();
+            const match = Object.keys(zip.files).find(f => {
+                const nf = normalizePath(f);
+                const lower = nf.toLowerCase();
+                return lower === targetWithRootLower
+                    || lower === targetLower
+                    || lower.endsWith('/' + targetLower);
+            });
+            return match ? zip.file(match) : null;
+        }
+
+        async function showTextPreview(path) {
+            try {
+                const fileObj = resolveZipEntry(currentZipFacade, path, currentRootPrefix);
+                if (!fileObj) throw new Error('Could not locate file in archive.');
+                const text = await fileObj.async('string');
+                textFileEl.textContent = `File: ${path}`;
+                textPreviewEl.textContent = text;
+                textModal.style.display = 'flex';
+            } catch (err) {
+                console.error('[SBOM Validator] Text preview failed:', err);
+            }
+        }
+
+        archiveTree.addEventListener('click', async (e) => {
+            const link = e.target.closest('.tree-file-link');
+            if (!link) return;
+            e.preventDefault();
+            const path = link.getAttribute('data-path');
+            if (path) await showTextPreview(path);
+        });
+
+        textCloseBtn.addEventListener('click', () => { textModal.style.display = 'none'; });
+        textModal.addEventListener('click', (e) => {
+            if (e.target === textModal) textModal.style.display = 'none';
+        });
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape' && textModal.style.display === 'flex') {
+                e.preventDefault();
+                textModal.style.display = 'none';
+            }
+        });
+
         function collectChildren(node) {
             const dirs = Array.from(node.dirs.values()).sort((a,b) => a.name.localeCompare(b.name)).map(d => ({ type: 'dir', node: d }));
             const files = node.files.sort((a,b) => a.name.localeCompare(b.name)).map(f => ({ type: 'file', name: f.name, path: f.path }));
@@ -985,7 +1070,7 @@
                 if (child.type === 'file') {
                     const rel = deriveRelPath(child.path, rootPrefix);
                     const badge = statusBadge(statusMap, rel);
-                    out.push(prefix + fileJunction + `<span class="tree-name">${escapeHtml(child.name)}</span>` + (badge ? ' ' + badge : ''));
+                    out.push(prefix + fileJunction + renderArchiveFileName(child.name, rel) + (badge ? ' ' + badge : ''));
                 } else {
                     const relDir = deriveRelPath(child.node.path, rootPrefix);
                     const badgeDir = statusBadge(statusMap, relDir);

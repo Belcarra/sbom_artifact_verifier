@@ -19,9 +19,9 @@ The Belcarra packaging and verification flow uses four distinct verification lay
    The SBOM lists hashes for the kit contents. The verifier recomputes those hashes for the files described by the manifest, excluding the `_manifest` directory.
 3. `manifest.spdx.json.sha256`
    `sbom-tool` generates the SHA-256 sidecar for `manifest.spdx.json`. This provides a direct integrity check of the JSON manifest.
-4. `manifest.spdx.json.cat`
-   Belcarra signs the Windows catalog for the SBOM manifest artifacts. In the updated packaging flow, the catalog covers 
-   all files in the kit (except for the manifest.spdx.json.cat file itself).
+4. `_manifest/manifest.cat`
+   Belcarra signs the Windows catalog for the package and SBOM artifacts. In the updated packaging flow, the catalog covers
+   all files in the kit (except for the `manifest.cat` file itself).
    Including both `manifest.spdx.json` and `manifest.spdx.json.sha256`.
 
 In summary:
