@@ -310,6 +310,11 @@
         const passwordCache = new Map(); // key: `${name}:${size}` => password
         const fileKey = (file) => `${file?.name || ''}:${file?.size || 0}`;
         const looksEncryptedError = (e) => /encrypted zip|password/i.test(String(e?.message || ''));
+        const OEM_ARCHIVE_ORIGINS = new Set([
+            'https://oem.belcarra.com',
+        ]);
+        const VERIFIER_READY_MESSAGE = 'belcarra.sbom.verifier.ready';
+        const PACKAGE_MESSAGE = 'belcarra.sbom.package';
 
         const dropLabelEl = document.getElementById('drop-label');
         if (dropLabelEl) {
@@ -432,10 +437,80 @@
         window.addEventListener('drop', onGlobalDrop, { capture: true });
 
         fileInput.onchange = (e) => { if (e.target.files.length) handleFile(e.target.files[0]); };
+        setupArchivePackageReceiver();
 
         let packageStack = [];
         let currentZipFacade = null;
         let currentRootPrefix = '';
+
+        function setupArchivePackageReceiver() {
+            const receiveMode = window.location.hash === '#receive' || new URLSearchParams(window.location.search).has('receive');
+            if (receiveMode && dropLabelEl) {
+                dropLabelEl.textContent = 'Waiting for package from OEM Archive...';
+            }
+
+            window.addEventListener('message', async (event) => {
+                try {
+                    if (!OEM_ARCHIVE_ORIGINS.has(event.origin)) {
+                        return;
+                    }
+
+                    const data = event.data || {};
+                    if (data.type !== PACKAGE_MESSAGE) {
+                        return;
+                    }
+
+                    const file = fileFromArchiveMessage(data);
+                    if (!file) {
+                        throw new Error('Package message did not include ZIP bytes.');
+                    }
+
+                    await handleFile(file);
+                } catch (err) {
+                    loader.style.display = 'none';
+                    statusBox.className = 'status error';
+                    statusBox.innerText = 'Error receiving package from OEM Archive: ' + (err?.message || String(err));
+                    dropZone.classList.add('active');
+                    const label = document.getElementById('drop-label');
+                    if (label) label.style.display = 'none';
+                    if (titleEl) titleEl.style.display = 'none';
+                    if (introEl) introEl.style.display = 'none';
+                    resultsContainer.style.display = 'block';
+                    treePanel.style.display = 'none';
+                    statusBox.style.display = 'block';
+                    console.error('[SBOM Validator] Archive package receive failed:', err);
+                }
+            });
+
+            if (window.opener && !window.opener.closed) {
+                try {
+                    window.opener.postMessage({
+                        type: VERIFIER_READY_MESSAGE,
+                        version: 1,
+                    }, '*');
+                } catch (err) {
+                    console.warn('[SBOM Validator] Could not notify opener that verifier is ready:', err);
+                }
+            }
+        }
+
+        function fileFromArchiveMessage(data) {
+            const rawName = String(data.name || data.fileName || 'package.zip').split(/[/\\]/).pop();
+            const name = rawName.toLowerCase().endsWith('.zip') ? rawName : rawName + '.zip';
+            const type = data.mimeType || 'application/zip';
+            const bytes = data.arrayBuffer || data.buffer || data.bytes || data.blob;
+
+            if (bytes instanceof Blob) {
+                return new File([bytes], name, { type });
+            }
+            if (bytes instanceof ArrayBuffer) {
+                return new File([bytes], name, { type });
+            }
+            if (ArrayBuffer.isView(bytes)) {
+                return new File([bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength)], name, { type });
+            }
+            return null;
+        }
 
         function updatePackageTrail() {
             try {
