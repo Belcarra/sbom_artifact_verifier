@@ -1,5 +1,6 @@
 # SBOM Artifact Verifier (Browser‑Only)
 
+
 ## Overview
 SBOM Artifact Verifier is a client‑side (in‑browser) tool for validating a 
 signed software package (ZIP) against its SBOM (Software Bill of Materials).

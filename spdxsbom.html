@@ -108,15 +108,74 @@
             border: 1px solid #e2e2e2;
             border-radius: 8px;
             padding: 10px;
-            white-space: pre;
+            white-space: normal;
             font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace;
             font-size: 22px;
             line-height: 1.1;
             letter-spacing: 0;
+            overflow: auto;
         }
         .tree-pre .tree-name { font-size: 20px; }
         .tree-pre .tree-dir { font-weight: 600; }
         .tree-pre .tree-root { font-weight: 700; }
+        .tree-line {
+            white-space: pre;
+            min-height: 1.15em;
+        }
+        .tree-scope {
+            position: relative;
+            display: inline-block;
+            min-width: min(100%, max-content);
+            margin: 5px 0;
+            padding: 7px 9px 26px 7px;
+            border: 2px solid #d0d7de;
+            border-radius: 8px;
+            background: #fff;
+            box-sizing: border-box;
+        }
+        .tree-scope .tree-scope {
+            display: block;
+            margin-left: 0;
+        }
+        .tree-scope-label {
+            position: absolute;
+            bottom: 6px;
+            right: 8px;
+            display: block;
+            margin: 0;
+            padding: 2px 6px;
+            border-radius: 999px;
+            font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+            font-size: 11px;
+            font-weight: 700;
+            line-height: 1.2;
+            letter-spacing: 0.01em;
+            text-transform: uppercase;
+        }
+        .tree-scope-sbom {
+            border-color: #7fc78f;
+            background: #f0fff4;
+        }
+        .tree-scope-sbom > .tree-scope-label {
+            color: #116329;
+            background: #dafbe1;
+        }
+        .tree-scope-driver {
+            border-color: #7aa7d9;
+            background: #f8fbff;
+        }
+        .tree-scope-driver > .tree-scope-label {
+            color: #084887;
+            background: #ddf4ff;
+        }
+        .tree-scope-manifest {
+            border-color: #d6a542;
+            background: #fffdf7;
+        }
+        .tree-scope-manifest > .tree-scope-label {
+            color: #7a4d00;
+            background: #fff2c7;
+        }
 
         /* About panel */
         .about { margin-top: 10px; background: #fff; border: 1px solid #e2e2e2; border-radius: 8px; padding: 12px; font-size: 14px; color: #333; }
@@ -813,7 +872,11 @@
                 resultsTable.style.display = 'table';
                 console.log('[SBOM Validator] Rendering tree: items in statusMap =', statusMap.size);
                 treePanel.style.display = 'flex';
-                renderArchiveTreeText(allEntries, file.name, statusMap, rootPrefix);
+                renderArchiveTreeText(allEntries, file.name, statusMap, rootPrefix, {
+                    sbomIntegrityInfo,
+                    driverCatalogInfo,
+                    sbomCatalogInfo,
+                });
                 const tpStyle = window.getComputedStyle(treePanel);
                 const rcStyle = window.getComputedStyle(resultsContainer);
                 console.log('[SBOM Validator] Tree HTML length:', (treeView.innerHTML||'').length,
@@ -1022,15 +1085,22 @@
     
     <script>
         // Archive tree rendering with connected lines via CSS
-        function renderArchiveTreeText(entries, rootName, statusMap, rootPrefix) {
+        function renderArchiveTreeText(entries, rootName, statusMap, rootPrefix, verification = {}) {
             try {
                 const tree = buildTreeFromEntries(entries);
-                const lines = [];
                 const root = escapeHtml(rootName || 'archive.zip');
-                lines.push(`<span class="tree-name tree-root">${root}</span>`);
                 const children = collectChildren(tree);
-                buildTextLines(children, [], lines, statusMap, rootPrefix);
-                archiveTree.innerHTML = `<pre class="tree-pre">${lines.join('\n')}</pre>`;
+                const manifestChildren = children.filter(isManifestRootChild);
+                const payloadChildren = children.filter(child => !isManifestRootChild(child));
+                const payloadHtml = payloadChildren.length
+                    ? `<div class="tree-scope tree-scope-manifest"><div class="tree-scope-label">Manifest JSON hash checks</div>${buildTreeHtml(payloadChildren, [], statusMap, rootPrefix, verification)}</div>`
+                    : '';
+                const content = [
+                    `<div class="tree-line"><span class="tree-name tree-root">${root}</span></div>`,
+                    buildTreeHtml(manifestChildren, [], statusMap, rootPrefix, verification),
+                    payloadHtml,
+                ].join('');
+                archiveTree.innerHTML = `<div class="tree-pre"><div class="tree-scope tree-scope-sbom"><div class="tree-scope-label">Manifest catalog signature</div>${content}</div></div>`;
             } catch (e) {
                 console.warn('[SBOM Validator] renderArchiveTreeText error:', e);
                 archiveTree.innerHTML = `<div class="tree">(could not render archive tree)</div>`;
@@ -1142,8 +1212,13 @@
             return [...dirs, ...files];
         }
 
-        function buildTextLines(children, prefixFlags, out, statusMap, rootPrefix) {
-            children.forEach((child, idx) => {
+        function isManifestRootChild(child) {
+            if (child.type === 'dir') return normalizePath(child.node.path).toLowerCase() === '_manifest';
+            return normalizePath(child.path).toLowerCase().startsWith('_manifest/');
+        }
+
+        function buildTreeHtml(children, prefixFlags, statusMap, rootPrefix, verification) {
+            return children.map((child, idx) => {
                 const isLast = idx === children.length - 1;
                 const prefix = prefixFlags.map(flag => flag ? '│   ' : '    ').join('');
                 const fileJunction = isLast ? '└── ' : '├── ';
@@ -1151,15 +1226,29 @@
                 if (child.type === 'file') {
                     const rel = deriveRelPath(child.path, rootPrefix);
                     const badge = statusBadge(statusMap, rel);
-                    out.push(prefix + fileJunction + renderArchiveFileName(child.name, rel) + (badge ? ' ' + badge : ''));
-                } else {
-                    const relDir = deriveRelPath(child.node.path, rootPrefix);
-                    const badgeDir = statusBadge(statusMap, relDir);
-                    out.push(prefix + dirJunction + `<span class="tree-name tree-dir">${escapeHtml(child.node.name)}/</span>` + (badgeDir ? ' ' + badgeDir : ''));
-                    const grand = collectChildren(child.node);
-                    if (grand.length) buildTextLines(grand, [...prefixFlags, !isLast], out, statusMap, rootPrefix);
+                    return `<div class="tree-line">${prefix + fileJunction}${renderArchiveFileName(child.name, rel)}${badge ? ' ' + badge : ''}</div>`;
                 }
-            });
+
+                const relDir = deriveRelPath(child.node.path, rootPrefix);
+                const badgeDir = statusBadge(statusMap, relDir);
+                const line = `<div class="tree-line">${prefix + dirJunction}<span class="tree-name tree-dir">${escapeHtml(child.node.name)}/</span>${badgeDir ? ' ' + badgeDir : ''}</div>`;
+                const grand = collectChildren(child.node);
+                const childHtml = grand.length ? buildTreeHtml(grand, [...prefixFlags, !isLast], statusMap, rootPrefix, verification) : '';
+                const scope = protectionScopeForDirectory(relDir, verification);
+                if (!scope) return line + childHtml;
+                return `<div class="tree-scope ${scope.className}"><div class="tree-scope-label">${scope.label}</div>${line}${childHtml}</div>`;
+            }).join('');
+        }
+
+        function protectionScopeForDirectory(relDir, verification) {
+            const rel = normalizePath(relDir).replace(/\/+$/, '').toLowerCase();
+            if (rel === 'drivers') {
+                const label = verification?.driverCatalogInfo?.status === 'ok'
+                    ? 'Driver catalog signature'
+                    : 'Driver catalog scope';
+                return { className: 'tree-scope-driver', label };
+            }
+            return null;
         }
 
         async function verifySbomIntegrity(zip, manifestPath, manifestContent, statusEl, detailEl) {
