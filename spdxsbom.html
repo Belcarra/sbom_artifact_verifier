@@ -30,7 +30,22 @@
         .status { padding: 15px; border-radius: 8px; display: none; flex: 1 1 auto; }
         .btn { padding: 10px 14px; border-radius: 8px; border: 1px solid #d0d7de; background: #f6f8fa; cursor: pointer; font-weight: 600; }
         .btn:hover { background: #eef1f4; }
-        .btn.new-file { align-self: stretch; white-space: nowrap; }
+        .btn.new-file, .btn.save-pdf { align-self: stretch; white-space: nowrap; }
+        .btn.save-pdf { background: #0969da; border-color: #0969da; color: #fff; }
+        .btn.save-pdf:hover { background: #0757b8; }
+        .report-toolbar { position: sticky; top: 0; z-index: 5; display: flex; justify-content: flex-end; gap: 8px; padding: 10px 0; background: #fff; border-bottom: 1px solid #d0d7de; }
+        .report-meta { margin: 8px 0 16px 0; color: #57606a; font-size: 13px; }
+        .provenance-list { margin: 0; padding-left: 18px; }
+        .provenance-list li { margin: 2px 0; }
+        .provenance-comment { color: #57606a; font-size: 12px; display: block; }
+        @media print {
+            body { background: #fff; padding: 0; display: block; }
+            .no-print, #new-file-btn, #back-btn, #save-pdf-btn { display: none !important; }
+            .drop-zone, .drop-zone.active { width: auto; max-width: none; border: 0; padding: 0; background: #fff; cursor: default; overflow: visible; }
+            #results-container { display: block !important; }
+            table { break-inside: auto; page-break-inside: auto; }
+            tr, .tree-scope, .tree, .tree-pre { break-inside: avoid; page-break-inside: avoid; }
+        }
         .success { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
         .error { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
         table { width: 100%; border-collapse: collapse; margin-top: 20px; background: white; }
@@ -198,7 +213,7 @@
         </p>
         <p><strong>What it does not do:</strong> It does not consult the Windows trust store or perform revocation checks. For official Windows trust, use <code>signtool verify /kp /v</code> on the catalog.</p>
         <p style="font-size:15px; font-weight:600;">All processing happens locally in your browser. No files or passwords are sent anywhere.</p>
-        <p style="margin-top:8px;">Project: <a href="https://github.com/Belcarra/sbom_artifact_verifier" target="_blank" rel="noopener">git@github.com:Belcarra/sbom_artifact_verifier.git</a> &nbsp;|&nbsp; Page version 2026.07.06.1</p>
+        <p style="margin-top:8px;">Project: <a href="https://github.com/Belcarra/sbom_artifact_verifier" target="_blank" rel="noopener">git@github.com:Belcarra/sbom_artifact_verifier.git</a> &nbsp;|&nbsp; Page version <span id="page-version">2026.07.12.1</span></p>
         <p style="margin-top:6px;">Example reports: <a href="belcarra/">Belcarra SPDX SBOM Overview</a></p>
     </div>
     <input type="file" id="file-input" style="display: none;" accept=".zip">
@@ -207,6 +222,7 @@
     <div id="results-container">
     <div id="status-row" class="status-row">
         <div id="status-box" class="status"></div>
+        <button id="save-pdf-btn" type="button" class="btn save-pdf" style="display:none;">Save to PDF</button>
         <button id="new-file-btn" type="button" class="btn new-file">New File</button>
         <button id="back-btn" type="button" class="btn" style="display:none;">Back to Parent</button>
     </div>
@@ -349,10 +365,12 @@
         const sbomCatStatusEl = document.getElementById('sbom-cat-status');
         const sbomCatDetailEl = document.getElementById('sbom-cat-detail');
         const newFileBtn = document.getElementById('new-file-btn');
+        const savePdfBtn = document.getElementById('save-pdf-btn');
         const backBtn = document.getElementById('back-btn');
         const packageTrailEl = document.getElementById('package-trail');
         const minElementsSection = document.getElementById('cisa-min-elements');
         const minElementsBody = document.getElementById('min-elements-body');
+        const PAGE_VERSION = document.getElementById('page-version')?.textContent?.trim() || 'unknown';
 
         // Helpers for diagnostics and path handling
         const log = (...args) => console.log('[SBOM Validator]', ...args);
@@ -388,6 +406,12 @@
                 resetUI();
             });
         }
+        if (savePdfBtn) {
+            savePdfBtn.addEventListener('click', (e) => {
+                e.preventDefault();
+                openPdfReport();
+            });
+        }
         if (backBtn) {
             backBtn.addEventListener('click', async (e) => {
                 e.preventDefault();
@@ -416,6 +440,7 @@
                 }
                 statusBox.style.display = 'none';
                 statusBox.innerHTML = '';
+                if (savePdfBtn) savePdfBtn.style.display = 'none';
                 loader.style.display = 'none';
                 // Clear signature section statuses
                 sbomStatusEl.textContent = 'Pending';
@@ -537,6 +562,7 @@
                     resultsContainer.style.display = 'block';
                     treePanel.style.display = 'none';
                     statusBox.style.display = 'block';
+                    if (savePdfBtn) savePdfBtn.style.display = 'none';
                     console.error('[SBOM Validator] Archive package receive failed:', err);
                 }
             });
@@ -652,6 +678,7 @@
                 } else {
                     statusBox.style.display = 'none';
                     resultsTable.style.display = 'none';
+                    if (savePdfBtn) savePdfBtn.style.display = 'none';
                     resultsBody.innerHTML = '';
                 }
                 // Maintain package stack for navigation
@@ -831,6 +858,7 @@
                     ? `<strong>✅ Validation Passed:</strong> Processed ${processed} files. All file hashes match the manifest.`
                     : `<strong>❌ Validation Issues:</strong> Checked ${processed} files. Missing: ${missing}, Mismatched: ${mismatched}, Extra: ${extras.length}.`;
                 statusBox.style.display = 'block';
+                if (savePdfBtn) savePdfBtn.style.display = '';
 
                 // 5. SBOM integrity: compare manifest.spdx.json vs .sha256 if present
                 const sbomIntegrityInfo = await verifySbomIntegrity(zip, manifestPath, manifestContent, sbomStatusEl, sbomDetailEl);
@@ -921,6 +949,7 @@
                 resultsContainer.style.display = 'block';
                 treePanel.style.display = 'none';
                 statusBox.style.display = 'block';
+                if (savePdfBtn) savePdfBtn.style.display = 'none';
                 try { window.scrollTo({ top: 0, behavior: 'auto' }); } catch(_) {}
                 // Automatic fallback: if we detected a 0-byte/virtual drop, prompt file picker
                 if (/0 bytes|0-length buffer|unreadable/i.test(err.message || '')) {
@@ -1007,6 +1036,80 @@
 
         function escapeAttr(str) {
             return escapeHtml(str).replace(/\n/g, '&#10;');
+        }
+
+        function currentReportTitle() {
+            const trail = packageStack.map(e => e?.name).filter(Boolean);
+            if (trail.length > 1) return `${trail[0]} / ${trail[trail.length - 1]}`;
+            return trail[0] || 'SBOM Verification Report';
+        }
+
+        function collectReportStyles() {
+            return Array.from(document.querySelectorAll('style'))
+                .map(style => style.textContent || '')
+                .join('\n');
+        }
+
+        function openPdfReport() {
+            if (!resultsContainer || resultsContainer.style.display === 'none') {
+                alert('Open and evaluate a package before saving a PDF report.');
+                return;
+            }
+
+            const reportWindow = window.open('', '_blank');
+            if (!reportWindow) {
+                alert('Please allow pop-ups to open the PDF report.');
+                return;
+            }
+
+            const reportTitle = currentReportTitle();
+            const generatedAt = new Date().toLocaleString();
+            const clonedResults = resultsContainer.cloneNode(true);
+            clonedResults.querySelectorAll('#new-file-btn, #back-btn, #save-pdf-btn, button').forEach(el => el.remove());
+            clonedResults.querySelectorAll('[id]').forEach(el => el.removeAttribute('id'));
+
+            const styles = collectReportStyles();
+            reportWindow.document.open();
+            reportWindow.document.write(`<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>${escapeHtml(reportTitle)} - Belcarra SBOM Verification Report</title>
+    <style>
+${styles}
+        body { background: #fff; display: block; padding: 18px; }
+        h1 { margin: 0 0 4px 0; font-size: 22px; }
+        .report-toolbar { margin-bottom: 12px; }
+        .report-shell { max-width: none; }
+        #results-container, .report-results { display: block !important; }
+        .status-row { margin-top: 0; }
+        @media print {
+            body { padding: 0; }
+            .report-shell { width: 100%; }
+        }
+    </style>
+</head>
+<body>
+    <div class="report-toolbar no-print">
+        <button type="button" class="btn save-pdf" onclick="window.print()">Save to PDF</button>
+    </div>
+    <main class="report-shell">
+        <h1>Belcarra SBOM Verification Report</h1>
+        <div class="report-meta">
+            <div><strong>Package:</strong> ${escapeHtml(reportTitle)}</div>
+            <div><strong>Generated:</strong> ${escapeHtml(generatedAt)}</div>
+            <div><strong>Verifier page version:</strong> ${escapeHtml(PAGE_VERSION)}</div>
+        </div>
+        <div class="report-results">${clonedResults.innerHTML}</div>
+    </main>
+    <script>
+        window.addEventListener('load', () => setTimeout(() => window.print(), 250));
+    <\/script>
+</body>
+</html>`);
+            reportWindow.document.close();
+            reportWindow.focus();
         }
 
         function renderStatusText(status, detail) {
@@ -1523,6 +1626,22 @@
             } else {
                 addRow('Dependency Relationship', '');
             }
+            if (rows.buildProvenance) {
+                const target = rows.buildProvenance.to || rows.buildProvenance.relatedSpdxElement || '';
+                const comment = rows.buildProvenance.comment || '';
+                const html = comment ? esc(comment) : esc(target);
+                addHtmlRow('GENERATED_FROM', html);
+            }
+            if (rows.copyOfRelationships && rows.copyOfRelationships.length) {
+                const items = rows.copyOfRelationships.map(rel => {
+                    const local = rel.from || rel.spdxElementId || '';
+                    const archived = rel.to || rel.relatedSpdxElement || '';
+                    const comment = rel.comment || '';
+                    const detail = comment || archived;
+                    return `<li><strong>${esc(local)}</strong><span class="provenance-comment">COPY_OF ${esc(detail)}</span></li>`;
+                }).join('');
+                addHtmlRow('COPY_OF File Provenance', `<ul class="provenance-list">${items}</ul>`);
+            }
             addRow('Tool Name', rows.toolName || '');
             addRow('Timestamp', rows.timestamp || '');
             // Show section
@@ -1530,7 +1649,7 @@
         }
 
         function extractMinimumElements(manifest) {
-            const out = { author: '', componentName: '', componentVersion: '', dependency: '', dependencyFrom: '', dependencyType: '', dependencyTo: '', toolName: '', timestamp: '', dependencyZipPath: '', dependencyZipName: '' };
+            const out = { author: '', componentName: '', componentVersion: '', dependency: '', dependencyFrom: '', dependencyType: '', dependencyTo: '', toolName: '', timestamp: '', dependencyZipPath: '', dependencyZipName: '', buildProvenance: null, copyOfRelationships: [] };
             try {
                 // Timestamp and creators
                 const ci = manifest.creationInfo || {};
@@ -1595,6 +1714,33 @@
                             out.dependencyZipName = clean.split('/').pop();
                         }
                     }
+                    const buildRel = rels.find(r =>
+                        r.relationshipType === 'GENERATED_FROM' &&
+                        r.spdxElementId === rootId &&
+                        /^DocumentRef-BuildRelease:/i.test(String(r.relatedSpdxElement || ''))
+                    );
+                    if (buildRel) {
+                        out.buildProvenance = {
+                            spdxElementId: buildRel.spdxElementId || '',
+                            relatedSpdxElement: buildRel.relatedSpdxElement || '',
+                            from: idToName.get(buildRel.spdxElementId) || buildRel.spdxElementId || '',
+                            to: idToName.get(buildRel.relatedSpdxElement) || buildRel.relatedSpdxElement || '',
+                            comment: buildRel.comment || '',
+                        };
+                    }
+                    out.copyOfRelationships = rels
+                        .filter(r =>
+                            r.relationshipType === 'COPY_OF' &&
+                            /^SPDXRef-File/i.test(String(r.spdxElementId || '')) &&
+                            /^DocumentRef-BuildRelease:SPDXRef-File/i.test(String(r.relatedSpdxElement || ''))
+                        )
+                        .map(r => ({
+                            spdxElementId: r.spdxElementId || '',
+                            relatedSpdxElement: r.relatedSpdxElement || '',
+                            from: idToName.get(r.spdxElementId) || r.spdxElementId || '',
+                            to: idToName.get(r.relatedSpdxElement) || r.relatedSpdxElement || '',
+                            comment: r.comment || '',
+                        }));
                 }
                 out.dependency = depText || '';
             } catch (e) {
