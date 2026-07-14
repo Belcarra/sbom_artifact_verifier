@@ -38,6 +38,10 @@
         .provenance-list { margin: 0; padding-left: 18px; }
         .provenance-list li { margin: 2px 0; }
         .provenance-comment { color: #57606a; font-size: 12px; display: block; }
+        .provenance-check { display: inline-block; margin-top: 6px; padding: 3px 8px; border-radius: 10px; font-size: 12px; font-weight: 600; border: 1px solid transparent; }
+        .provenance-check.ok { background: #e6f4ea; color: #1e7e34; border-color: #c7e6cd; }
+        .provenance-check.warn { background: #fff4e5; color: #8a6d3b; border-color: #ffe0b2; }
+        .provenance-check.bad { background: #ffebee; color: #b71c1c; border-color: #ef9a9a; }
         @media print {
             body { background: #fff; padding: 0; display: block; }
             .no-print, #new-file-btn, #back-btn, #save-pdf-btn { display: none !important; }
@@ -213,7 +217,7 @@
         </p>
         <p><strong>What it does not do:</strong> It does not consult the Windows trust store or perform revocation checks. For official Windows trust, use <code>signtool verify /kp /v</code> on the catalog.</p>
         <p style="font-size:15px; font-weight:600;">All processing happens locally in your browser. No files or passwords are sent anywhere.</p>
-        <p style="margin-top:8px;">Project: <a href="https://github.com/Belcarra/sbom_artifact_verifier" target="_blank" rel="noopener">git@github.com:Belcarra/sbom_artifact_verifier.git</a> &nbsp;|&nbsp; Page version <span id="page-version">2026.07.12.1</span></p>
+        <p style="margin-top:8px;">Project: <a href="https://github.com/Belcarra/sbom_artifact_verifier" target="_blank" rel="noopener">git@github.com:Belcarra/sbom_artifact_verifier.git</a> &nbsp;|&nbsp; Page version <span id="page-version">2026.07.14.1</span></p>
         <p style="margin-top:6px;">Example reports: <a href="belcarra/">Belcarra SPDX SBOM Overview</a></p>
     </div>
     <input type="file" id="file-input" style="display: none;" accept=".zip">
@@ -921,7 +925,7 @@
                 try { window.scrollTo({ top: 0, behavior: 'auto' }); } catch (_) {}
 
                 // 7. Render CISA Minimum Elements summary table
-                try { renderMinimumElements(manifest, zip, ctx); } catch (e) { console.warn('[SBOM Validator] Minimum Elements rendering error:', e); }
+                try { await renderMinimumElements(manifest, zip, ctx); } catch (e) { console.warn('[SBOM Validator] Minimum Elements rendering error:', e); }
                 const dzRect = dropZone.getBoundingClientRect();
                 const rcRect = resultsContainer.getBoundingClientRect();
                 console.log('[SBOM Validator] sizes:', 'innerWH=', window.innerWidth, window.innerHeight, 'docWH=', document.documentElement.clientWidth, document.documentElement.clientHeight, 'dropZone=', Math.round(dzRect.width)+'x'+Math.round(dzRect.height), 'results=', Math.round(rcRect.width)+'x'+Math.round(rcRect.height));
@@ -1563,7 +1567,78 @@ ${styles}
             }
         }
 
-        function renderMinimumElements(manifest, zip, ctx = {}) {
+        function parseBuildProvenanceReference(comment) {
+            const text = String(comment || '');
+            const s3Match = text.match(/s3:\/\/([^/\s]+)\/(\S+)/);
+            if (!s3Match) return null;
+            const versionMatch = text.match(/\bversionId=([^\s]+)/);
+            const zipShaMatch = text.match(/\bzipSha256=([0-9a-fA-F]{64})/);
+            if (!versionMatch || !zipShaMatch) return null;
+            return {
+                bucket: s3Match[1],
+                key: s3Match[2],
+                versionId: versionMatch[1],
+                zipSha256: zipShaMatch[1].toLowerCase(),
+            };
+        }
+
+        function s3TaggingUrl(ref) {
+            const encodedKey = String(ref.key || '')
+                .split('/')
+                .map(part => encodeURIComponent(part))
+                .join('/');
+            const version = encodeURIComponent(ref.versionId || '');
+            return `https://${ref.bucket}.s3.us-west-2.amazonaws.com/${encodedKey}?tagging&versionId=${version}`;
+        }
+
+        function parseS3TaggingXml(xmlText) {
+            const doc = new DOMParser().parseFromString(xmlText, 'application/xml');
+            const parseError = doc.querySelector('parsererror');
+            if (parseError) throw new Error('Invalid S3 tag XML response');
+            const tags = {};
+            for (const node of Array.from(doc.querySelectorAll('Tag'))) {
+                const key = node.querySelector('Key')?.textContent || '';
+                const value = node.querySelector('Value')?.textContent || '';
+                if (key) tags[key] = value;
+            }
+            return tags;
+        }
+
+        async function verifyBuildArchiveTags(ref) {
+            try {
+                const response = await fetch(s3TaggingUrl(ref), { method: 'GET', mode: 'cors' });
+                if (!response.ok) {
+                    return {
+                        status: 'warn',
+                        label: `S3 tag check unavailable (${response.status})`,
+                    };
+                }
+                const tags = parseS3TaggingXml(await response.text());
+                const tagSha = String(tags.sha256 || '').toLowerCase();
+                if (!tagSha) {
+                    return { status: 'warn', label: 'S3 tag check unavailable (no sha256 tag)' };
+                }
+                if (tagSha !== ref.zipSha256) {
+                    return { status: 'bad', label: 'S3 tag check mismatch' };
+                }
+                return { status: 'ok', label: 'S3 tag check OK' };
+            } catch (error) {
+                return {
+                    status: 'warn',
+                    label: 'S3 tag check unavailable',
+                    detail: error?.message || String(error),
+                };
+            }
+        }
+
+        function renderProvenanceCheck(check) {
+            if (!check) return '';
+            const status = check.status === 'ok' ? 'ok' : (check.status === 'bad' ? 'bad' : 'warn');
+            const title = check.detail ? ` title="${escapeAttr(check.detail)}"` : '';
+            return `<br><span class="provenance-check ${status}"${title}>${escapeHtml(check.label || '')}</span>`;
+        }
+
+        async function renderMinimumElements(manifest, zip, ctx = {}) {
             if (!manifest || typeof manifest !== 'object') return;
             const rows = extractMinimumElements(manifest);
             // Clear table body and populate
@@ -1629,7 +1704,9 @@ ${styles}
             if (rows.buildProvenance) {
                 const target = rows.buildProvenance.to || rows.buildProvenance.relatedSpdxElement || '';
                 const comment = rows.buildProvenance.comment || '';
-                const html = comment ? esc(comment) : esc(target);
+                const ref = parseBuildProvenanceReference(comment);
+                const check = ref ? await verifyBuildArchiveTags(ref) : null;
+                const html = (comment ? esc(comment) : esc(target)) + renderProvenanceCheck(check);
                 addHtmlRow('GENERATED_FROM', html);
             }
             if (rows.copyOfRelationships && rows.copyOfRelationships.length) {
