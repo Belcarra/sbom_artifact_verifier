@@ -217,7 +217,7 @@
         </p>
         <p><strong>What it does not do:</strong> It does not consult the Windows trust store or perform revocation checks. For official Windows trust, use <code>signtool verify /kp /v</code> on the catalog.</p>
         <p style="font-size:15px; font-weight:600;">All processing happens locally in your browser. No files or passwords are sent anywhere.</p>
-        <p style="margin-top:8px;">Project: <a href="https://github.com/Belcarra/sbom_artifact_verifier" target="_blank" rel="noopener">git@github.com:Belcarra/sbom_artifact_verifier.git</a> &nbsp;|&nbsp; Page version <span id="page-version">2026.07.14.1</span></p>
+        <p style="margin-top:8px;">Project: <a href="https://github.com/Belcarra/sbom_artifact_verifier" target="_blank" rel="noopener">git@github.com:Belcarra/sbom_artifact_verifier.git</a> &nbsp;|&nbsp; Page version <span id="page-version">2026.09.30.1</span></p>
         <p style="margin-top:6px;">Example reports: <a href="belcarra/">Belcarra SPDX SBOM Overview</a></p>
     </div>
     <input type="file" id="file-input" style="display: none;" accept=".zip">
@@ -393,6 +393,8 @@
         const looksEncryptedError = (e) => /encrypted zip|password/i.test(String(e?.message || ''));
         const OEM_ARCHIVE_ORIGINS = new Set([
             'https://oem.belcarra.com',
+            'https://belcarra-oem-releases.s3.us-west-2.amazonaws.com',
+            'https://belcarra-oem-releases.s3.amazonaws.com',
         ]);
         const VERIFIER_READY_MESSAGE = 'belcarra.sbom.verifier.ready';
         const PACKAGE_MESSAGE = 'belcarra.sbom.package';
