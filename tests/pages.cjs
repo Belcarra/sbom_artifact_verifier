@@ -9,6 +9,7 @@ test('Pages build preserves verifier bytes and only publishes linked assets',()=
     execFileSync(process.execPath,['tools/build-pages.cjs'],{cwd:root});
     const publicDir=path.join(root,'dist/public');
     assert.deepEqual(fs.readFileSync(path.join(publicDir,'spdxsbom.html')),fs.readFileSync(path.join(root,'spdxsbom.html')));
+    assert.match(fs.readFileSync(path.join(publicDir,'_headers'),'utf8'),/Cache-Control: no-cache, no-transform/);
     assert.ok(fs.readFileSync(path.join(publicDir,'belcarra/index.html'),'utf8').includes('<h1>Belcarra SPDX SBOM Overview</h1>'));
     for(const name of ['package.json','cloudflare.env','test','scripts','artifacts','belcarra/kit/drivers','belcarra/oem/belcarra.cfg']) assert.ok(!fs.existsSync(path.join(publicDir,name)),name);
     const html=fs.readFileSync(path.join(publicDir,'belcarra/index.html'),'utf8');
