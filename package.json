@@ -1,0 +1,21 @@
+{
+  "name": "sbom-artifact-verifier",
+  "private": true,
+  "scripts": {
+    "test": "node --test tests/*.cjs",
+    "build": "node tools/build-pages.cjs",
+    "deploy:pages": "wrangler pages deploy dist/public --project-name belcarra-verifier --branch develop",
+    "release:pdf": "node scripts/release_zip_to_pdf.js",
+    "screenshots:install": "playwright install chromium",
+    "verify:live": "node scripts/playwright_verify_live.js",
+    "verify:local": "node scripts/playwright_verify_local.js"
+  },
+  "devDependencies": {
+    "markdown-it": "14.3.3",
+    "playwright": "1.60.0",
+    "wrangler": "4.149.0"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}
